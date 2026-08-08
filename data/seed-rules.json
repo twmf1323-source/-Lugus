@@ -1,0 +1,132 @@
+[
+  {
+    "id": "seed-imparfait-er",
+    "title": "第一組動詞未完成過去（-er imparfait）",
+    "category": "時態",
+    "explanation": "詞幹取自直陳式現在時 nous 形式去掉 -ons（parler → parlons → parl-），再加上未完成過去式詞尾。",
+    "endings": {
+      "je": "-ais",
+      "tu": "-ais",
+      "il": "-ait",
+      "nous": "-ions",
+      "vous": "-iez",
+      "ils": "-aient"
+    },
+    "created_at": "2026-01-01T00:00:00.000Z",
+    "updated_at": "2026-01-01T00:00:00.000Z"
+  },
+  {
+    "id": "seed-pouvoir-imparfait",
+    "title": "pouvoir 未完成過去（pouvoir imparfait）",
+    "category": "變位",
+    "explanation": "詞幹 pouv-（來自 nous pouvons），加上標準 imparfait 詞尾。",
+    "endings": {
+      "je": "pouvais",
+      "tu": "pouvais",
+      "il": "pouvait",
+      "nous": "pouvions",
+      "vous": "pouviez",
+      "ils": "pouvaient"
+    },
+    "created_at": "2026-01-01T00:00:00.000Z",
+    "updated_at": "2026-01-01T00:00:00.000Z"
+  },
+  {
+    "id": "seed-present-er",
+    "title": "第一組動詞現在時（-er présent）",
+    "category": "時態",
+    "explanation": "不定詞去掉 -er 得詞幹，再加上現在時詞尾。je 在元音前寫作 j'。",
+    "endings": {
+      "je": "-e",
+      "tu": "-es",
+      "il": "-e",
+      "nous": "-ons",
+      "vous": "-ez",
+      "ils": "-ent"
+    },
+    "created_at": "2026-01-01T00:00:00.000Z",
+    "updated_at": "2026-01-01T00:00:00.000Z"
+  },
+  {
+    "id": "seed-etre-present",
+    "title": "être 現在時（être présent）",
+    "category": "變位",
+    "explanation": "être 現在時完全不規則，需整組背誦。",
+    "endings": {
+      "je": "suis",
+      "tu": "es",
+      "il": "est",
+      "nous": "sommes",
+      "vous": "êtes",
+      "ils": "sont"
+    },
+    "created_at": "2026-01-01T00:00:00.000Z",
+    "updated_at": "2026-01-01T00:00:00.000Z"
+  },
+  {
+    "id": "seed-futur-simple",
+    "title": "簡單未來式（futur simple）",
+    "category": "時態",
+    "explanation": "以不定詞為詞幹（-re 動詞去掉最後的 e），加上 avoir 現在時詞尾。",
+    "endings": {
+      "je": "-ai",
+      "tu": "-as",
+      "il": "-a",
+      "nous": "-ons",
+      "vous": "-ez",
+      "ils": "-ont"
+    },
+    "created_at": "2026-01-01T00:00:00.000Z",
+    "updated_at": "2026-01-01T00:00:00.000Z"
+  },
+  {
+    "id": "seed-avoir-present",
+    "title": "avoir 現在時（avoir présent）",
+    "category": "變位",
+    "explanation": "avoir 現在時常用作 passé composé 助動詞。je 在元音前常寫成 j'ai；否定時 ne 省音為 n'ai pas。",
+    "endings": {
+      "je": "ai|j'ai|n'ai",
+      "tu": "as|n'as",
+      "il": "a|n'a",
+      "nous": "avons",
+      "vous": "avez",
+      "ils": "ont"
+    },
+    "created_at": "2026-01-01T00:00:00.000Z",
+    "updated_at": "2026-01-01T00:00:00.000Z"
+  },
+  {
+    "id": "seed-negation-ne-pas",
+    "title": "否定（ne…pas）",
+    "category": "否定",
+    "explanation": "一般否定：ne + 動詞 + pas。動詞以元音或啞音 h 開頭時 ne 省音為 n'（如 n'ai、n'est）。口語中 ne 常省略，只留 pas。",
+    "has_persons": false,
+    "keywords": ["pas", "ne", "n'", "n"],
+    "endings": {
+      "je": "",
+      "tu": "",
+      "il": "",
+      "nous": "",
+      "vous": "",
+      "ils": ""
+    },
+    "created_at": "2026-01-01T00:00:00.000Z",
+    "updated_at": "2026-01-01T00:00:00.000Z"
+  },
+  {
+    "id": "seed-pp-er",
+    "title": "第一組過去分詞（-é）",
+    "category": "變位",
+    "explanation": "規則 -er 動詞過去分詞去 -er 加 -é（déjeuner → déjeuné）。常與 avoir 構成 passé composé：j'ai déjeuné / je n'ai pas déjeuné。",
+    "endings": {
+      "je": "-é",
+      "tu": "-é",
+      "il": "-é",
+      "nous": "-é",
+      "vous": "-é",
+      "ils": "-é"
+    },
+    "created_at": "2026-01-01T00:00:00.000Z",
+    "updated_at": "2026-01-01T00:00:00.000Z"
+  }
+]
