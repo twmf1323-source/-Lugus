@@ -3064,6 +3064,74 @@ body.bulk-import-running #btn-project-bulk-clear {
   letter-spacing: 0.02em;
   color: #d4c0e8;
 }
+.word-tip-pop-inner {
+  display: flex;
+  align-items: stretch;
+  gap: 0.45rem;
+}
+.word-tip-pop-body {
+  flex: 1;
+  min-width: 0;
+}
+.word-tip-edit-mode-btn {
+  flex: 0 0 auto;
+  writing-mode: vertical-rl;
+  text-orientation: mixed;
+  letter-spacing: 0.14em;
+  min-width: 2.35rem;
+  margin: -0.15rem -0.15rem -0.15rem 0;
+  padding: 0.55rem 0.35rem;
+  border: 0;
+  border-left: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 0 8px 8px 0;
+  background: color-mix(in srgb, #fff 10%, transparent);
+  color: inherit;
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+.word-tip-edit-mode-btn:active,
+.word-tip-edit-mode-btn.is-on {
+  background: color-mix(in srgb, var(--accent) 55%, #2a2438);
+}
+.sentence-text-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.35rem;
+  flex-shrink: 0;
+}
+.btn-sentence-select-edit {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.15rem;
+  height: 2.15rem;
+  margin-top: 0.08rem;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: #fff;
+  color: var(--accent);
+  cursor: pointer;
+}
+.btn-sentence-select-edit svg {
+  width: 1.05rem;
+  height: 1.05rem;
+  display: block;
+}
+.btn-sentence-select-edit.is-on {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+}
+.sentence-board.is-select-edit .sentence-text {
+  outline: 2px dashed color-mix(in srgb, var(--accent) 55%, transparent);
+  outline-offset: 4px;
+  border-radius: 6px;
+}
 
 .sentence-label {
   display: flex;
@@ -3460,7 +3528,8 @@ a,
   }
   .lookup-hist-btn,
   .lookup-seq-btn,
-  .btn-sentence-speak {
+  .btn-sentence-speak,
+  .btn-sentence-select-edit {
     width: 44px;
     height: 44px;
     min-width: 44px;
