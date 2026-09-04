@@ -29,6 +29,8 @@ const App = (() => {
      * @type {null | { text: string, start: number, end: number }}
      */
     selApply: null,
+    /** 點擊選字編輯（與 hover／複製浮層分開） */
+    sentenceSelectEdit: false,
     /** 單字解釋編輯中的區間 */
     vocabEditRange: null,
     /**
@@ -3776,6 +3778,8 @@ const App = (() => {
   let wordTipHideTimer = 0;
   let wordTipSelectArmed = false;
   let wordTipAnchor = null;
+  let sentenceGesture = { moved: false, x: 0, y: 0 };
+  let suppressWordTipClick = false;
 
   function cancelWordTipHide() {
     if (wordTipHideTimer) {
@@ -3890,6 +3894,7 @@ const App = (() => {
   }
 
   function showWordTipPop(anchor, data) {
+    if (isSentenceSelectEdit()) return;
     cancelWordTipHide();
     const pop = ensureWordTipPop();
     const g = genderLabel(data.gender);
@@ -3945,10 +3950,8 @@ const App = (() => {
             )}</span></div>`
           : ""
       }`;
-    pop.classList.remove("hidden");
-    wordTipAnchor = anchor;
-    appendWordTipCopyAction(pop, data);
-    requestAnimationFrame(() => placePopNearAnchor(pop, anchor));
+    pop.innerHTML = wrapWordTipPopHtml(pop.innerHTML);
+    finalizeWordTipPop(pop, anchor, data);
   }
 
   const LOOKUP_TTS_LANG = "fr-FR";
@@ -4282,6 +4285,114 @@ const App = (() => {
     window.speechSynthesis.addEventListener("voiceschanged", refreshTtsVoices);
   }
 
+  function isSentenceSelectEdit() {
+    return Boolean(state.sentenceSelectEdit);
+  }
+
+  function syncSentenceSelectEditUi() {
+    const on = isSentenceSelectEdit();
+    $("#sentence-board")?.classList.toggle("is-select-edit", on);
+    document.querySelectorAll("[data-sentence-select-edit]").forEach((btn) => {
+      btn.classList.toggle("is-on", on);
+      btn.setAttribute("aria-pressed", on ? "true" : "false");
+    });
+  }
+
+  function setSentenceSelectEdit(on) {
+    const next = Boolean(on);
+    const changed = next !== isSentenceSelectEdit();
+    state.sentenceSelectEdit = next;
+    hideWordTipPop();
+    syncSentenceSelectEditUi();
+    if (!changed) return;
+    if (next) {
+      showToast("選字編輯：點句中的字來套用規則或編輯單字", "info");
+    } else {
+      showToast("已關閉選字編輯，點字可再看音標／性別", "info");
+    }
+  }
+
+  function toggleSentenceSelectEdit() {
+    setSentenceSelectEdit(!isSentenceSelectEdit());
+  }
+
+  function wrapWordTipPopHtml(bodyHtml) {
+    const on = isSentenceSelectEdit();
+    return `<div class="word-tip-pop-inner">
+      <div class="word-tip-pop-body">${bodyHtml}</div>
+      <button type="button" class="word-tip-edit-mode-btn${on ? " is-on" : ""}" data-sentence-select-edit aria-pressed="${
+        on ? "true" : "false"
+      }" title="開啟選字編輯：改以點擊選字，套用規則或編輯單字">選字編輯</button>
+    </div>`;
+  }
+
+  function finalizeWordTipPop(pop, anchor, data) {
+    pop.classList.remove("hidden");
+    wordTipAnchor = anchor;
+    const body = pop.querySelector(".word-tip-pop-body") || pop;
+    appendWordTipCopyAction(body, data);
+    requestAnimationFrame(() => placePopNearAnchor(pop, anchor));
+  }
+
+  function applySentenceTokenSelection(el, clientX, clientY) {
+    if (!el) return false;
+    const range = getMarkRangeInQuery(el);
+    if (!range?.text) return false;
+    hideWordTipPop();
+    state.selApply = range;
+    try {
+      const r = document.createRange();
+      r.selectNodeContents(el);
+      const sel = window.getSelection();
+      sel.removeAllRanges();
+      sel.addRange(r);
+    } catch {
+      /* ignore */
+    }
+    const inv = state.lastInventory;
+    let note = "點選片段 · 可套用規則或編輯單字";
+    if (inv?.items && range.start >= 0) {
+      const n = inv.items.filter((it) => {
+        if (Number.isFinite(Number(it.start)) && Number.isFinite(Number(it.end))) {
+          return !(range.end <= Number(it.start) || range.start >= Number(it.end));
+        }
+        return String(it.span || "").trim() === range.text;
+      }).length;
+      if (n > 0) note = `此片段已有 ${n} 則 · 可再疊加`;
+    }
+    showSelApplyPop(clientX, clientY, range.text, { note });
+    return true;
+  }
+
+  function markSentenceGestureStart(e) {
+    const p = eventClientPoint(e);
+    sentenceGesture = { moved: false, x: p.x, y: p.y };
+  }
+
+  function markSentenceGestureMove(e) {
+    const p = eventClientPoint(e);
+    if (!Number.isFinite(p.x) || !Number.isFinite(p.y)) return;
+    if (!Number.isFinite(sentenceGesture.x)) return;
+    if (Math.hypot(p.x - sentenceGesture.x, p.y - sentenceGesture.y) > 12) {
+      sentenceGesture.moved = true;
+    }
+  }
+
+  function shouldRevealSelApplyFromGesture() {
+    return sentenceGesture.moved;
+  }
+
+  function sentenceSelectEditButtonHtml() {
+    const on = isSentenceSelectEdit();
+    return `<button type="button" class="btn-sentence-select-edit${on ? " is-on" : ""}" data-sentence-select-edit title="選字編輯：點擊句中的字來套用規則或編輯單字" aria-label="選字編輯" aria-pressed="${
+      on ? "true" : "false"
+    }">
+      <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+        <path fill="currentColor" d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a1 1 0 0 0 0-1.41l-2.34-2.34a1 1 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/>
+      </svg>
+    </button>`;
+  }
+
   function sentenceSpeakButtonHtml() {
     return `<button type="button" class="btn-sentence-speak" data-speak-sentence title="朗讀整句" aria-label="朗讀整句">
       <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
@@ -4293,7 +4404,10 @@ const App = (() => {
   function sentenceTextBlockHtml(innerHtml) {
     return `<div class="sentence-text-row">
       <p class="sentence-text" id="sentence-text">${innerHtml}</p>
-      ${sentenceSpeakButtonHtml()}
+      <div class="sentence-text-actions">
+        ${sentenceSelectEditButtonHtml()}
+        ${sentenceSpeakButtonHtml()}
+      </div>
     </div>`;
   }
 
@@ -4358,9 +4472,15 @@ const App = (() => {
       let pressY = 0;
       const coarse = isCoarsePointer();
       if (!coarse) {
-        el.addEventListener("mouseenter", () => showWordTipPop(el, data));
+        el.addEventListener("mouseenter", () => {
+          if (isSentenceSelectEdit()) return;
+          showWordTipPop(el, data);
+        });
         el.addEventListener("mouseleave", (e) => requestHideWordTipPop(e));
-        el.addEventListener("focus", () => showWordTipPop(el, data));
+        el.addEventListener("focus", () => {
+          if (isSentenceSelectEdit()) return;
+          showWordTipPop(el, data);
+        });
         el.addEventListener("blur", () => requestHideWordTipPop());
       }
       el.addEventListener("pointerdown", (e) => {
@@ -4370,10 +4490,19 @@ const App = (() => {
       el.addEventListener("click", (e) => {
         if (e.detail > 1) return;
         if (state.locateTarget) return;
-        if (selectionIsNonEmptyInSentence()) return;
+        if (suppressWordTipClick) {
+          suppressWordTipClick = false;
+          return;
+        }
+        if (sentenceGesture.moved) return;
+        if (selectionIsNonEmptyInSentence() && !isSentenceSelectEdit()) return;
         if (Math.hypot(e.clientX - pressX, e.clientY - pressY) > 8) return;
         e.preventDefault();
         e.stopPropagation();
+        if (isSentenceSelectEdit()) {
+          applySentenceTokenSelection(el, e.clientX, e.clientY);
+          return;
+        }
         if (coarse) {
           if (wordTipAnchor === el) hideWordTipPop();
           else showWordTipPop(el, data);
@@ -6426,6 +6555,8 @@ const App = (() => {
     for (const host of hosts) {
       if (host.dataset.selBound === "1") continue;
       host.dataset.selBound = "1";
+      host.addEventListener("pointerdown", markSentenceGestureStart);
+      host.addEventListener("pointermove", markSentenceGestureMove);
       host.addEventListener("mouseup", onSentenceMouseUp);
       host.addEventListener("touchend", onSentenceMouseUp, { passive: true });
     }
@@ -6435,6 +6566,8 @@ const App = (() => {
     if (e.target.closest && e.target.closest("#sel-apply-pop, button, a, .sentence-legend, .locate-mode-bar")) {
       return;
     }
+    if (!shouldRevealSelApplyFromGesture()) return;
+    suppressWordTipClick = true;
     const point = eventClientPoint(e);
     requestAnimationFrame(() => {
       requestAnimationFrame(() => {
@@ -7903,6 +8036,8 @@ const App = (() => {
       }
       if (!$("#sentence-text")) return;
       if (e.target.closest && e.target.closest("#sentence-board")) return;
+      if (!shouldRevealSelApplyFromGesture()) return;
+      suppressWordTipClick = true;
       const point = eventClientPoint(e);
       requestAnimationFrame(() => {
         const cap = captureSentenceSelection();
@@ -7924,6 +8059,7 @@ const App = (() => {
     let selChangeTimer = 0;
     document.addEventListener("selectionchange", () => {
       if (!isCoarsePointer() || state.view !== "lookup") return;
+      if (!shouldRevealSelApplyFromGesture()) return;
       clearTimeout(selChangeTimer);
       selChangeTimer = window.setTimeout(() => {
         const cap = captureSentenceSelection();
@@ -7951,6 +8087,13 @@ const App = (() => {
     });
 
     document.addEventListener("click", (e) => {
+      const editBtn = e.target.closest("[data-sentence-select-edit]");
+      if (editBtn) {
+        e.preventDefault();
+        e.stopPropagation();
+        toggleSentenceSelectEdit();
+        return;
+      }
       const btn = e.target.closest("[data-speak-sentence]");
       if (!btn) return;
       e.preventDefault();
@@ -7971,6 +8114,10 @@ const App = (() => {
         if (!$("#sel-apply-pop")?.classList.contains("hidden")) {
           hideSelApplyPop();
           state.selApply = null;
+          return;
+        }
+        if (isSentenceSelectEdit()) {
+          setSentenceSelectEdit(false);
           return;
         }
         if (state.locateTarget) {
