@@ -664,7 +664,7 @@ const Analyzer = (() => {
           "確認不定詞（infinitif）與時態",
           "【不規則】勿套用第一組／通則詞尾，需另立此動詞專屬規則",
           "六人稱格子請填完整形（suis、peux…），不要只填 -ais",
-          "規則名寫具體動詞：如 pouvoir 未完成過去（pouvoir imparfait）",
+          "規則名寫具體動詞：如 未完成過去（pouvoir imparfait）",
           "對照 Bescherelle／變位表核對其餘格",
         ]
       : [

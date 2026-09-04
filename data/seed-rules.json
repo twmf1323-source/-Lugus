@@ -1,7 +1,7 @@
 [
   {
     "id": "seed-imparfait-er",
-    "title": "第一組動詞未完成過去（-er imparfait）",
+    "title": "未完成過去（-er imparfait）",
     "category": "時態",
     "explanation": "詞幹取自直陳式現在時 nous 形式去掉 -ons（parler → parlons → parl-），再加上未完成過去式詞尾。",
     "endings": {
@@ -17,7 +17,7 @@
   },
   {
     "id": "seed-pouvoir-imparfait",
-    "title": "pouvoir 未完成過去（pouvoir imparfait）",
+    "title": "未完成過去（pouvoir imparfait）",
     "category": "變位",
     "explanation": "詞幹 pouv-（來自 nous pouvons），加上標準 imparfait 詞尾。",
     "endings": {
@@ -33,7 +33,7 @@
   },
   {
     "id": "seed-present-er",
-    "title": "第一組動詞現在時（-er présent）",
+    "title": "現在時（-er présent）",
     "category": "時態",
     "explanation": "不定詞去掉 -er 得詞幹，再加上現在時詞尾。je 在元音前寫作 j'。",
     "endings": {
@@ -49,7 +49,7 @@
   },
   {
     "id": "seed-etre-present",
-    "title": "être 現在時（être présent）",
+    "title": "現在時（être）",
     "category": "變位",
     "explanation": "être 現在時完全不規則，需整組背誦。",
     "endings": {
@@ -81,7 +81,7 @@
   },
   {
     "id": "seed-avoir-present",
-    "title": "avoir 現在時（avoir présent）",
+    "title": "現在時（avoir）",
     "category": "變位",
     "explanation": "avoir 現在時常用作 passé composé 助動詞。je 在元音前常寫成 j'ai；否定時 ne 省音為 n'ai pas。",
     "endings": {
@@ -115,7 +115,7 @@
   },
   {
     "id": "seed-pp-er",
-    "title": "第一組過去分詞（-é）",
+    "title": "過去分詞（-é）",
     "category": "變位",
     "explanation": "規則 -er 動詞過去分詞去 -er 加 -é（déjeuner → déjeuné）。常與 avoir 構成 passé composé：j'ai déjeuné / je n'ai pas déjeuné。",
     "endings": {

@@ -2,13 +2,18 @@
 <html lang="zh-Hant">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="Lugus" />
+    <meta name="theme-color" content="#f4f0f8" />
     <meta
       name="description"
       content="Lugus — 法語文法筆記本：本地規則優先查詢，API 盤點補強與查詢歷史"
     />
     <title>Lugus · 法語文法筆記本</title>
-    <link rel="stylesheet" href="css/styles.css" />
+    <link rel="stylesheet" href="css/styles.css?v=ipad1" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
@@ -24,26 +29,27 @@
           <div>
             <h1>Lugus</h1>
             <p class="brand-sub">
-              法語文法 · 本地優先 · API 盤點 ·
+              法語文法 · API 盤點 ·
               <span id="app-rule-count">0</span> 筆規則
             </p>
           </div>
         </div>
         <nav class="main-nav" aria-label="主要導覽">
-          <button type="button" class="nav-btn active" data-view="lookup">查詢</button>
-          <button type="button" class="nav-btn" data-view="history">歷史</button>
+          <button type="button" class="nav-btn active" data-view="lookup" title="查詢（Z）">查詢</button>
+          <button type="button" class="nav-btn" data-view="history" title="歷史（X）">歷史</button>
           <button
             type="button"
             class="nav-btn"
             id="nav-projects"
             data-action="projects"
-            title="開啟專案列表；若已在專案中則回到該專案"
+            title="專案（C）· 開啟專案列表；若已在專案中則回到該專案"
           >
             專案
           </button>
-          <button type="button" class="nav-btn" data-view="rules">規則筆記本</button>
-          <button type="button" class="nav-btn" data-view="todos">待辦</button>
-          <button type="button" class="nav-btn" data-view="settings">
+          <button type="button" class="nav-btn" data-view="rules" title="規則筆記本（V）">規則筆記本</button>
+          <button type="button" class="nav-btn" data-view="vocab" title="單字本（B）">單字本</button>
+          <button type="button" class="nav-btn" data-view="todos" title="待辦（N）">待辦</button>
+          <button type="button" class="nav-btn" data-view="settings" title="設定（M）">
             設定
             <span id="api-status-dot" class="api-status-dot" title="API 未設定" aria-hidden="true"></span>
           </button>
@@ -58,18 +64,18 @@
               <div class="view-header-main">
                 <h2>文法查詢</h2>
                 <p id="lookup-mode-desc" class="lookup-mode-status">
-                  輸入單詞或整句。右側可切換模式；盤點後可選字套用、本句移除。
+                  輸入單詞或整句。右側可切換 API 文法／單字；盤點後可選字套用、本句移除。
                 </p>
               </div>
               <div class="lookup-mode-toolbar" aria-label="查詢模式">
                 <div class="lookup-mode-toolbar-head">
-                  <span class="lookup-mode-toolbar-title">查詢模式</span>
+                  <span class="lookup-mode-toolbar-title" title="W 切換 API 文法 · S 切換 API 單字">查詢模式</span>
                   <button
                     type="button"
                     class="btn btn-sm btn-secondary settings-mode-all-btn"
                     id="btn-settings-modes-all"
                     aria-pressed="false"
-                    title="一次開啟 API 文法＋單字（關閉本地）或全部關閉"
+                    title="一次開啟 API 文法＋單字或全部關閉"
                   >
                     全部開啟
                   </button>
@@ -78,7 +84,7 @@
                   <label
                     class="lookup-mode-chip"
                     for="settings-mode-api-grammar"
-                    title="API 文法排查（與本地互斥，需 Key）"
+                    title="API 文法排查（需 Key）· 快捷鍵 W"
                   >
                     <input type="checkbox" id="settings-mode-api-grammar" role="switch" />
                     <span class="settings-switch-ui" aria-hidden="true"></span>
@@ -87,31 +93,37 @@
                   <label
                     class="lookup-mode-chip"
                     for="settings-mode-api-vocab"
-                    title="API 單字查詢（可與文法並用，需 Key）"
+                    title="API 單字查詢（可與文法並用，需 Key）· 快捷鍵 S"
                   >
                     <input type="checkbox" id="settings-mode-api-vocab" role="switch" />
                     <span class="settings-switch-ui" aria-hidden="true"></span>
                     <span class="lookup-mode-chip-text">API 單字</span>
-                  </label>
-                  <label
-                    class="lookup-mode-chip"
-                    for="settings-mode-local-grammar"
-                    title="本地文法排查（與 API 文法互斥，免 Key）"
-                  >
-                    <input type="checkbox" id="settings-mode-local-grammar" role="switch" />
-                    <span class="settings-switch-ui" aria-hidden="true"></span>
-                    <span class="lookup-mode-chip-text">本地文法</span>
                   </label>
                 </div>
               </div>
             </div>
           </div>
 
-          <div id="project-mode-bar" class="project-mode-bar hidden" role="status">
+          <div id="project-mode-bar" class="project-mode-bar hidden">
             <div class="project-mode-bar-main">
               <span class="project-mode-badge" aria-hidden="true">專案</span>
-              <span class="project-mode-name" id="project-mode-name">—</span>
-              <span class="project-mode-pos muted" id="project-mode-pos"></span>
+              <button
+                type="button"
+                class="project-mode-collection hidden"
+                id="project-mode-collection"
+                title="打開此大項的分項列表"
+              ></button>
+              <span class="project-mode-path-sep hidden" id="project-mode-path-sep" aria-hidden="true">›</span>
+              <span
+                class="project-mode-name"
+                id="project-mode-name"
+                contenteditable="true"
+                spellcheck="false"
+                role="textbox"
+                aria-label="分項名稱，點此改名"
+                title="點此改名"
+              >—</span>
+              <span class="project-mode-pos muted" id="project-mode-pos" role="status"></span>
             </div>
             <div class="project-mode-bar-actions">
               <button type="button" class="btn btn-sm btn-secondary" id="btn-project-entries">
@@ -142,7 +154,7 @@
                 type="button"
                 class="lookup-hist-btn lookup-seq-btn"
                 id="btn-lookup-seq-prev"
-                title="上一號句子"
+                title="上一號句子（A / ←）"
                 aria-label="上一號句子"
                 hidden
               >
@@ -153,7 +165,7 @@
                 type="button"
                 class="lookup-hist-btn lookup-seq-btn"
                 id="btn-lookup-seq-next"
-                title="再看歷史中的上一句（本機紀錄）"
+                title="再看歷史中的上一句（D / →）"
                 aria-label="再看歷史上一句"
               >
                 <span class="lookup-hist-btn-icon" aria-hidden="true">→</span>
@@ -163,6 +175,73 @@
           </form>
 
           <div id="lookup-result" class="lookup-result" aria-live="polite"></div>
+
+          <section
+            id="project-bulk-import"
+            class="project-bulk hidden"
+            aria-labelledby="project-bulk-title"
+          >
+            <div class="project-bulk-head">
+              <div>
+                <h3 id="project-bulk-title">一次放入歌詞／文本</h3>
+                <p class="project-bulk-lead">
+                  依<strong>原本換行</strong>切成句子，空白行略過；副歌等重複句會各自佔一個編號，API 只查第一次，其餘直接套用已查過的結果。
+                  同一行有句號／逗號可先按「依句號分行」或「依逗號分行」。
+                  使用右上角查詢模式：
+                  <strong id="project-bulk-mode">未啟用</strong>
+                </p>
+              </div>
+            </div>
+            <label class="sr-only" for="project-bulk-input">整首歌詞或文本</label>
+            <textarea
+              id="project-bulk-input"
+              rows="5"
+              spellcheck="false"
+              autocapitalize="off"
+              placeholder="貼上整首歌詞或對話……&#10;每一行會成為專案裡的一句。"
+            ></textarea>
+            <div class="project-bulk-footer">
+              <p class="project-bulk-stat" id="project-bulk-stat" aria-live="polite">
+                尚未貼上內容
+              </p>
+              <div class="project-bulk-actions">
+                <button
+                  type="button"
+                  class="btn btn-ghost btn-sm"
+                  id="btn-project-bulk-split-comma"
+                  title="依 、，, 把同一行拆成多行，可再手動改"
+                >
+                  依逗號分行
+                </button>
+                <button
+                  type="button"
+                  class="btn btn-ghost btn-sm"
+                  id="btn-project-bulk-split"
+                  title="依 。．.！？ 把同一行拆成多行，可再手動改"
+                >
+                  依句號分行
+                </button>
+                <button type="button" class="btn btn-ghost btn-sm" id="btn-project-bulk-clear">
+                  清空
+                </button>
+                <button type="button" class="btn btn-primary" id="btn-project-bulk-run">
+                  依目前模式分析並匯入
+                </button>
+              </div>
+            </div>
+            <div id="project-bulk-progress" class="project-bulk-progress hidden" role="status">
+              <div class="project-bulk-progress-main">
+                <strong id="project-bulk-progress-title">分析中</strong>
+                <span id="project-bulk-progress-line" class="project-bulk-progress-line"></span>
+              </div>
+              <div class="project-bulk-progress-bar" aria-hidden="true">
+                <span id="project-bulk-progress-fill" class="project-bulk-progress-fill"></span>
+              </div>
+              <button type="button" class="btn btn-sm btn-secondary" id="btn-project-bulk-cancel">
+                取消其餘
+              </button>
+            </div>
+          </section>
         </section>
 
         <section id="view-history" class="view hidden">
@@ -202,10 +281,28 @@
           <div id="rules-list"></div>
         </section>
 
+        <section id="view-vocab" class="view hidden">
+          <div class="view-header row">
+            <div>
+              <h2>單字本</h2>
+              <p id="vocab-bank-count">本地累積的單字，會自動套用到新查詢句子</p>
+            </div>
+          </div>
+          <div class="filter-bar">
+            <input
+              id="vocab-bank-filter"
+              type="search"
+              placeholder="搜尋表面形、原形、意思、音標…"
+              autocomplete="off"
+            />
+          </div>
+          <div id="vocab-bank-list"></div>
+        </section>
+
         <section id="view-form" class="view hidden">
           <div class="view-header">
             <h2 id="form-heading">新增規則</h2>
-            <p id="form-sub">規則名建議「中文（法語）」；動詞變位再勾選六人稱。不規則動詞（être、pouvoir…）請另立專屬規則，六格填完整形。</p>
+            <p id="form-sub">規則名請用「極短中文用法名（法語）」，如 否定（ne…pas）。動詞變位再勾選六人稱。不規則動詞（être、pouvoir…）請另立專屬規則，六格填完整形。</p>
           </div>
           <div id="form-prefill-banner" class="result-banner info hidden"></div>
           <form id="rule-form" class="rule-form">
@@ -216,14 +313,14 @@
                   <input
                     id="form-title"
                     required
-                    placeholder="例如：否定（ne…pas）、être 現在時（être présent）"
+                    placeholder="例如：否定（ne…pas）、未完成過去（imparfait）"
                   />
                   <button type="button" class="btn btn-ai" id="btn-ai-complete" title="依規則名 AI 自動填寫">
                     <span class="ai-btn-icon" aria-hidden="true">✦</span>
                     <span class="ai-btn-label">AI 自動填寫</span>
                   </button>
                 </div>
-                <small class="hint">建議格式：中文功能名（法語標記）。填好後可按 AI 自動填寫（需 API Key）。</small>
+                <small class="hint">格式：極短中文用法名（法語標記），如 否定（ne…pas）。填好後可按 AI 自動填寫（需 API Key）。</small>
               </div>
 
               <label class="field full">
@@ -313,25 +410,33 @@
           </div>
           <form id="settings-form" class="rule-form settings-form" autocomplete="off">
             <div class="form-grid form-grid-simple">
+              <div class="field full">
+                <span>API 服務</span>
+                <div class="api-provider-pills" id="settings-api-provider" role="radiogroup" aria-label="API 服務"></div>
+                <small class="hint" id="settings-provider-hint">
+                  切換 Grok／Google／DeepSeek 時，各服務的金鑰會分開保存在本機。綠點表示該服務已存過 Key。
+                </small>
+              </div>
               <label class="field full">
                 <span>API Key <em id="settings-api-key-req">*</em></span>
                 <div class="secret-row">
-                  <input id="settings-api-key" type="password" placeholder="XAI_API_KEY" spellcheck="false" autocomplete="off" />
-                  <button type="button" class="btn btn-secondary btn-sm" id="btn-toggle-key">顯示</button>
+                  <input id="settings-api-key" type="password" placeholder="貼上目前服務的 API Key" spellcheck="false" autocomplete="off" />
+                  <button type="button" class="btn btn-secondary btn-sm" id="btn-toggle-key" aria-pressed="false">顯示</button>
                 </div>
-                <small class="hint">
-                  存在本機 localStorage。申請：
-                  <a href="https://console.x.ai" target="_blank" rel="noopener">console.x.ai</a>
-                  · 僅本地文法排查時可不填
+                <small class="hint" id="settings-api-key-hint">
+                  金鑰存在本機瀏覽器 localStorage，不會上傳到本專案伺服器。請勿在公用電腦儲存。
                 </small>
               </label>
               <label class="field full">
                 <span>API Base URL</span>
                 <input id="settings-base-url" type="url" placeholder="https://api.x.ai/v1" spellcheck="false" />
+                <small class="hint" id="settings-base-url-hint">預設為 SpaceXAI / xAI：<code>https://api.x.ai/v1</code>（OpenAI 相容）</small>
               </label>
               <label class="field full">
                 <span>模型</span>
-                <input id="settings-model" type="text" placeholder="grok-4.5" spellcheck="false" />
+                <input id="settings-model" type="text" placeholder="grok-4.6" spellcheck="false" />
+                <div class="model-shortcuts" id="settings-model-shortcuts"></div>
+                <small class="hint" id="settings-model-hint">點快捷填入模型名；也可手動輸入主控台提供的其他名稱。</small>
               </label>
               <div class="settings-status-box" id="settings-status" aria-live="polite">
                 <span class="settings-status-label">狀態</span>
@@ -345,11 +450,27 @@
             </div>
           </form>
 
+          <section class="rule-form settings-data-panel" aria-labelledby="settings-tts-heading">
+            <h3 id="settings-tts-heading" class="settings-panel-title">朗讀</h3>
+            <p class="hint settings-data-hint">
+              點單字複製原形時會朗讀。預設用系統語音；開啟後改走 Grok TTS。
+            </p>
+            <label class="settings-switch" for="settings-api-tts">
+              <input type="checkbox" id="settings-api-tts" role="switch" />
+              <span class="settings-switch-ui" aria-hidden="true"></span>
+              <span class="settings-switch-text">
+                <strong>使用 API 語音（Grok TTS）</strong>
+                <small class="hint">優先用目前選的服務。Grok、Google 可合成語音；DeepSeek 沒有語音時，會改用其他已填 Key 的 Grok／Google／自訂端點。關閉則用系統語音。</small>
+              </span>
+            </label>
+          </section>
+
           <section class="rule-form settings-data-panel" aria-labelledby="settings-data-heading">
             <h3 id="settings-data-heading" class="settings-panel-title">資料管理</h3>
             <p class="hint settings-data-hint">
-              備份或還原<strong>規則筆記本</strong>與<strong>專案</strong>（同一 JSON）。重設種子只清規則與待辦，不會清除 API Key 與專案。
+              備份或還原<strong>規則筆記本</strong>與<strong>專案</strong>（同一 JSON）。專案句子快照存在 IndexedDB，不受 localStorage 約 5MB 上限。重設種子只清規則與待辦，不會清除 API Key 與專案。
             </p>
+            <p id="settings-storage-usage" class="hint settings-data-hint" role="status"></p>
             <div class="form-actions settings-data-actions">
               <button type="button" class="btn btn-secondary" id="btn-export">匯出 JSON</button>
               <button type="button" class="btn btn-secondary" id="btn-import">匯入 JSON</button>
@@ -361,7 +482,7 @@
       </main>
 
       <footer class="app-footer">
-        <p>Lugus · 單詞本地 · 整句 API 盤點 · 專案 · 規則名建議：中文（法語）</p>
+        <p>Lugus · 法語文法 · API 盤點 · 專案 · 規則名建議：中文（法語）</p>
       </footer>
     </div>
 
@@ -379,8 +500,8 @@
         <header class="modal-header">
           <div>
             <h2 id="projects-modal-title">專案</h2>
-            <p class="modal-sub">
-              適合歌詞、對話等連貫文本。進入後查詢會依序編號，句子永久保存在專案內（不寫入一般歷史）。
+            <p class="modal-sub" id="projects-modal-sub">
+              先選大項（如歌詞、小說），再進分項。句子只存在分項裡。
             </p>
           </div>
           <button type="button" class="btn btn-ghost btn-sm modal-close" id="btn-projects-modal-close" aria-label="關閉">
@@ -388,22 +509,31 @@
           </button>
         </header>
 
+        <nav id="projects-modal-crumb" class="projects-crumb hidden" aria-label="專案位置">
+          <button type="button" class="projects-crumb-link" id="btn-projects-crumb-root">
+            全部大項
+          </button>
+          <span class="projects-crumb-sep" aria-hidden="true">›</span>
+          <span
+            id="projects-crumb-current"
+            class="projects-crumb-current"
+            spellcheck="false"
+          ></span>
+        </nav>
+
         <div class="project-create-row">
-          <label class="sr-only" for="project-new-name">新專案名稱</label>
+          <label class="sr-only" for="project-new-name" id="project-new-name-label">新大項名稱</label>
           <input
             id="project-new-name"
             type="text"
-            placeholder="新專案名稱，例如：某首歌"
+            placeholder="新大項名稱，例如：歌詞、小說"
             maxlength="80"
             autocomplete="off"
           />
-          <button type="button" class="btn btn-primary" id="btn-project-create">建立</button>
+          <button type="button" class="btn btn-primary" id="btn-project-create">建立大項</button>
         </div>
 
-        <div id="projects-list" class="projects-list"></div>
-        <p class="modal-sub" style="margin:0">
-          專案備份請到「設定 → 資料管理」與規則一併匯出／匯入。
-        </p>
+        <div id="projects-list" class="projects-list-host"></div>
       </div>
     </div>
 
@@ -493,51 +623,32 @@
             </label>
             <label class="field">
               <span>詞性</span>
-              <input
-                id="vocab-edit-pos"
-                type="text"
-                list="vocab-edit-pos-list"
-                placeholder="動詞／名詞…"
-                spellcheck="false"
-              />
-              <datalist id="vocab-edit-pos-list">
-                <option value="動詞"></option>
-                <option value="名詞"></option>
-                <option value="形容詞"></option>
-                <option value="副詞"></option>
-                <option value="代詞"></option>
-                <option value="其他"></option>
-              </datalist>
+              <select id="vocab-edit-pos">
+                <option value="">（未指定）</option>
+                <option value="動詞">動詞</option>
+                <option value="名詞">名詞</option>
+                <option value="形容詞">形容詞</option>
+                <option value="副詞">副詞</option>
+                <option value="代詞">代詞</option>
+                <option value="其他">其他</option>
+              </select>
             </label>
             <label class="field">
               <span>性別</span>
-              <input
-                id="vocab-edit-gender"
-                type="text"
-                list="vocab-edit-gender-list"
-                placeholder="陽／陰／—"
-                spellcheck="false"
-              />
-              <datalist id="vocab-edit-gender-list">
-                <option value="陽"></option>
-                <option value="陰"></option>
-                <option value=""></option>
-              </datalist>
+              <select id="vocab-edit-gender">
+                <option value="">（未指定）</option>
+                <option value="陽">陽</option>
+                <option value="陰">陰</option>
+              </select>
             </label>
             <label class="field">
               <span>動詞組別</span>
-              <input
-                id="vocab-edit-verb-group"
-                type="text"
-                list="vocab-edit-vg-list"
-                placeholder="1／2／3 或不規則"
-                spellcheck="false"
-              />
-              <datalist id="vocab-edit-vg-list">
-                <option value="1"></option>
-                <option value="2"></option>
-                <option value="3"></option>
-              </datalist>
+              <select id="vocab-edit-verb-group">
+                <option value="">（未指定／非動詞）</option>
+                <option value="1">1</option>
+                <option value="2">2</option>
+                <option value="3">3</option>
+              </select>
             </label>
             <label class="field">
               <span>音標（IPA）</span>
@@ -570,7 +681,7 @@
             <h2 id="rule-pick-modal-title">套用規則</h2>
             <p class="modal-sub">
               選取片段：<strong id="rule-pick-span-preview" class="rule-pick-span"></strong>
-              — 依選取字<strong>本地</strong>推送可能規則置頂；只影響本句，不改筆記本。
+              — 依選取字<strong>本地</strong>推送（完整形／關鍵詞／API 盤點對齊優先）；只影響本句，不改筆記本。
             </p>
           </div>
           <button type="button" class="btn btn-ghost btn-sm modal-close" id="btn-rule-pick-close" aria-label="關閉">
@@ -609,10 +720,10 @@
       </div>
     </div>
 
-    <script src="js/storage.js"></script>
+    <script src="js/storage.js?v=enfr1"></script>
     <script src="js/analyzer.js"></script>
     <script src="js/rules.js"></script>
-    <script src="js/ai.js"></script>
-    <script src="js/app.js"></script>
+    <script src="js/ai.js?v=enfr1"></script>
+    <script src="js/app.js?v=ipad1"></script>
   </body>
 </html>

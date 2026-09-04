@@ -7,16 +7,16 @@ const AiService = (() => {
   const RULE_SYSTEM = `你是法語文法助教。依「規則名」產出筆記本卡片 JSON（不要 markdown／圍欄／其他文字）。
 
 短鍵（必用）：
-{"n":"中文（法語）","c":"變位|時態|否定|代詞|介詞|冠詞|句型|其他","e":"繁中說明2–5句","p":true或false,"k":["關鍵詞"],"d":{"je":"","tu":"","il":"","nous":"","vous":"","ils":""}}
+{"n":"極短中文用法名（法語標記）","c":"變位|時態|否定|代詞|介詞|冠詞|句型|其他","e":"繁中說明2–5句","p":true或false,"k":["關鍵詞"],"d":{"je":"","tu":"","il":"","nous":"","vous":"","ils":""}}
 
 規則：
-1. n 必須「中文（法語）」，如 未完成過去（imparfait）、否定（ne…pas）、être 現在時（être présent）。
+1. n 必須「極短中文用法名（法語標記）」，全形括號。標準例：**否定（ne…pas）**、未完成過去（imparfait）、命令（impératif）。中文極短；括號內只寫法語標記。禁止長句標題、禁止只寫「動詞」「時態」。
 2. 動詞變位：p=true，d 填六格詞尾（-ais）或完整形（suis、ai）；k 可 []。
 3. 一般文法：p=false，d 六格全 ""，k 填 pas、ne、n' 等表面形。
 4. e 只寫用法，盡量無例句。不要 structure。
 5. 一次一主題。不規則必須寫具體動詞名（如 pouvoir 現在時），禁止只寫「不規則」。
 6. 標題括號內法語標記要具體，避免空泛「動詞」「時態」。
-7. 【不規則另立規則】être／avoir／aller／faire／pouvoir／vouloir／devoir／savoir／venir／prendre 等：n 必須含不定詞（如 pouvoir 未完成過去（pouvoir imparfait））；d 填完整形，禁止只填通則詞尾 -ais/-e；不可做成「第一組 -er」通則卡。`;
+7. 【不規則另立規則】être／avoir／aller／faire／pouvoir／vouloir／devoir／savoir／venir／prendre 等：n 必須「極短中文（不定詞＋法語標記）」（如 未完成過去（pouvoir imparfait））；d 填完整形，禁止只填通則詞尾 -ais/-e；不可做成「-er」通則卡。`;
 
   const INVENTORY_SYSTEM = `你是法語文法助教。盤點句中文法，並給實詞原形與簡義。只輸出一個 JSON（無 markdown／圍欄）。
 
@@ -25,7 +25,7 @@ const AiService = (() => {
   "u": "摘要可空",
   "t": "整句繁中翻譯（必填）",
   "i": [
-    {"n":"中文（法語）","c":"變位|時態|否定|代詞|介詞|冠詞|句型|其他","s":"句中片段","f":"h|m|l"}
+    {"n":"極短中文用法名（法語標記）","c":"變位|時態|否定|代詞|介詞|冠詞|句型|其他","s":"句中片段","f":"h|m|l"}
   ],
   "v": [
     {"s":"句中表面形","l":"詞典原形／不定詞","g":"簡短中文義","p":"動詞|形容詞|名詞|副詞|代詞|數詞|其他","r":"m|f|mf|","vg":"1|2|3|","ip":"IPA音標","a":0,"b":2}
@@ -35,9 +35,9 @@ const AiService = (() => {
 欄位：n=全名；c=分類；s=span 或 surface；f=h/m/l；v 中 l=lemma，g=gloss，p=詞性完整中文，r=性別（名詞／有性形容詞必填），vg=動詞組別（僅動詞），ip=句中表面形 s 的 IPA 音標（實詞必填，勿標原形 l），a/b=原文 start/end（0-based，b 不含）。
 
 文法 i：
-1. n 格式 中文（法語），如 過去分詞（-é）、否定（ne…pas）、avoir 現在時（avoir présent）。
+1. n 格式「極短中文用法名（法語標記）」，全形括號。如 **否定（ne…pas）**、過去分詞（-é）、現在時（présent）。中文極短；括號內只寫法語。
 2. **優先沿用「本地已有規則標題」原文**（user 訊息會列出）。若句中文法已有對應卡，n 必須與列表中某一標題**完全一致**（一字不改），方便系統判「已收錄」。
-3. 通則與具體動詞分開：pouvais → 若本地有「pouvoir 未完成過去（pouvoir imparfait）」就用該標題；勿只寫「未完成過去」或「第一組…imparfait」。
+3. 通則與具體動詞分開：pouvais → 若本地有「未完成過去（pouvoir imparfait）」就用該標題；勿只寫「未完成過去」或「-er imparfait」。
 4. 禁止 n 只寫「不規則」「動詞變位」「現在時」「imparfait」等統稱。
 5. 【不規則另立規則】句中不規則動詞（suis/vais/peux/veux/fais/allais/voulais…）的 n 必須含該不定詞；不可併入「第一組動詞現在時／未完成過去」通則。規則 -er 動詞才可用通則名。
 6. 只列值得建卡的點；已有本地規則也可列（標題用本地原文）。
@@ -74,7 +74,8 @@ const AiService = (() => {
    - 例：s=pouvais,l=pouvoir → ip=/puvɛ/（不是 /puvwaʁ/）
    - 例：s=suis,l=être → ip=/sɥi/（不是 /ɛtʁ/）
    - 例：s=déjeuné,l=déjeuner → ip=/deʒœne/ 或 /deʒøne/（過去分詞讀音）
-   - 例：s=table,l=table → ip=/tabl/（表面即原形時才相同）`;
+   - 例：s=table,l=table → ip=/tabl/（表面即原形時才相同）
+20. **歌詞夾雜的英文**（翻譯行、yeah／baby／oh、the／you／I 等）不要列入 v；只列法語實詞。`
 
   function getConfig() {
     const s = Storage.loadSettings();
@@ -117,6 +118,7 @@ const AiService = (() => {
     "句型",
     "形容詞",
     "其他",
+    "補充用法",
   ]);
 
   function pickField(obj, shortKey, ...longKeys) {
@@ -280,8 +282,9 @@ const AiService = (() => {
     return "";
   }
 
-  function normalizeDraft(data, fallbackTitle) {
+  function normalizeDraft(data, fallbackTitle, opts = {}) {
     const d = data || {};
+    const keepCategory = String(opts.keepCategory || "").trim();
     const endingsIn =
       (typeof d.d === "object" && d.d) ||
       (typeof d.endings === "object" && d.endings) ||
@@ -310,7 +313,12 @@ const AiService = (() => {
     else hasPersons = Object.values(endings).some((v) => v);
 
     let category = String(pickField(d, "c", "category")).trim();
-    if (!ALLOWED_CAT.has(category)) category = hasPersons ? "變位" : "其他";
+    if (keepCategory === "補充用法") {
+      category = "補充用法";
+      hasPersons = false;
+    } else if (!ALLOWED_CAT.has(category)) {
+      category = hasPersons ? "變位" : "其他";
+    }
 
     let keywords = [];
     const kRaw = d.k != null ? d.k : d.keywords;
@@ -448,7 +456,8 @@ const AiService = (() => {
           end,
         };
       })
-      .filter(Boolean);
+      .filter(Boolean)
+      .filter((w) => !(typeof Storage !== "undefined" && Storage.isEnglishVocabSkip && Storage.isEnglishVocabSkip(w.surface, w.lemma)));
 
     return { summary, translation, items, vocab };
   }
@@ -501,22 +510,28 @@ const AiService = (() => {
     return content;
   }
 
-  async function completeRuleFromTitle(title) {
+  async function completeRuleFromTitle(title, opts = {}) {
     const t = String(title || "").trim();
     if (!t) throw new Error("請先填寫規則名");
+    const keepCategory = String(opts.keepCategory || "").trim();
+    const isSupp = keepCategory === "補充用法";
+
+    const userContent = isSupp
+      ? `規則名：${t}\n\n這是一張「補充用法」卡片（成語／慣用／語境補充，不是一般文法規則）。\n請依此產出短鍵 JSON。n 必須是「極短中文用法名（法語標記）」。\n**c 必須輸出「補充用法」**，不可改成變位／時態／否定／代詞／介詞／冠詞／句型／形容詞／其他。\np 通常為 false，d 六格全空。說明聚焦此用法的語境、語氣與注意點。`
+      : `規則名：${t}\n\n請產出短鍵 JSON。n 必須「極短中文用法名（法語標記）」，如 否定（ne…pas）。動詞填六人稱 d；不要 structure。`;
 
     const content = await chatComplete({
       messages: [
         { role: "system", content: RULE_SYSTEM },
         {
           role: "user",
-          content: `規則名：${t}\n\n請產出短鍵 JSON。標題「中文（法語）」；動詞填六人稱 d；不要 structure。`,
+          content: userContent,
         },
       ],
       temperature: 0.25,
     });
 
-    return normalizeDraft(extractJson(content), t);
+    return normalizeDraft(extractJson(content), t, { keepCategory });
   }
 
   /** 僅單字／原形：短 prompt、不帶本地規則標題（省 tokens） */
@@ -532,7 +547,8 @@ const AiService = (() => {
 4. r：名詞／有性形容詞填 m|f|mf；動詞等填 ""。
 5. vg：動詞填 1|2|3；非動詞 ""。
 6. ip：實詞必填 IPA，必須是 **s 句中表面形** 的讀音（變位／複數等），禁止標 l 原形音。例：s=pouvais→/puvɛ/；s=suis→/sɥi/。
-7. 同 l 可多筆不同 s；a/b 盡量準。`;
+7. 同 l 可多筆不同 s；a/b 盡量準。
+8. 夾雜的英文（翻譯行、yeah／baby／oh、the／you／I 等）不要列入 v。`;
 
   async function inventoryGrammar(query, localTitles = []) {
     const q = String(query || "").trim();
@@ -575,6 +591,8 @@ const AiService = (() => {
 
     const inv = normalizeInventory(extractJson(content));
     inv.items = [];
+    inv.mode = "vocab-only";
+    inv.source = inv.source || "api-vocab";
     if (!inv.summary) inv.summary = `API 單字：${(inv.vocab || []).length} 詞`;
     return inv;
   }
@@ -587,6 +605,13 @@ const AiService = (() => {
   async function completeWordFromSurface(surface, sentence = "") {
     const surf = String(surface || "").trim();
     if (!surf) throw new Error("沒有選取的詞");
+    if (
+      typeof Storage !== "undefined" &&
+      Storage.isEnglishVocabSkip &&
+      Storage.isEnglishVocabSkip(surf, "", sentence)
+    ) {
+      throw new Error("這是英文詞，已略過（不查詢、不收入單字庫）");
+    }
     const ctx = String(sentence || "").trim();
     const content = await chatComplete({
       messages: [
@@ -638,6 +663,7 @@ const AiService = (() => {
     completeWordFromSurface,
     inventoryGrammar,
     inventoryVocabOnly,
+    normalizeDraft,
     normalizeInventory,
     testConnection,
   };
