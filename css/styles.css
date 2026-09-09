@@ -4258,13 +4258,36 @@ a,
     padding-bottom: 0.35rem;
   }
 
-  #view-settings .settings-form,
-  #view-form .rule-form {
-    flex: 1 1 auto;
-    min-height: 0;
+  #view-settings.view:not(.hidden),
+  #view-form.view:not(.hidden) {
     overflow: auto;
     -webkit-overflow-scrolling: touch;
     overscroll-behavior: contain;
+  }
+  #view-settings .settings-form,
+  #view-form .rule-form {
+    flex: 0 0 auto;
+    overflow: visible;
+    min-height: 0;
+  }
+  #view-settings .form-actions,
+  #view-settings .settings-data-actions {
+    flex-wrap: wrap;
+  }
+  #view-settings .form-actions .btn,
+  #view-settings .settings-data-actions .btn {
+    flex: 1 1 auto;
+    min-height: 44px;
+  }
+  #view-settings .secret-row {
+    flex-wrap: wrap;
+  }
+  #view-settings .settings-data-panel {
+    margin-bottom: 0.85rem;
+  }
+  .person-grid,
+  .person-table {
+    grid-template-columns: 1fr 1fr;
   }
 
   /* 查詢：上輸入、下閱讀 */
