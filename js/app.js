@@ -178,6 +178,9 @@ const App = (() => {
   }
 
   function setView(view) {
+    if (view !== "lookup" && typeof closeRuleViewModal === "function") {
+      closeRuleViewModal();
+    }
     state.view = view;
     $$(".nav-btn").forEach((btn) => {
       if (view === "form") {
@@ -1520,6 +1523,46 @@ const App = (() => {
     else recallPreviousHistorySentence();
   }
 
+  function bindLookupSwipeNav() {
+    const root = $("#lookup-result");
+    if (!root || root.dataset.swipeBound === "1") return;
+    root.dataset.swipeBound = "1";
+    let x0 = 0;
+    let y0 = 0;
+    let pid = null;
+    const ignore = (el) =>
+      !!(
+        el &&
+        el.closest &&
+        el.closest(
+          "button, a, input, textarea, select, .sentence-legend, .locate-mode-bar, .inv-sentence-translation, .word-tip-pop, .sel-apply-pop"
+        )
+      );
+    const reset = () => {
+      pid = null;
+    };
+    root.addEventListener("pointerdown", (e) => {
+      if (pid != null) return;
+      if (e.pointerType === "mouse") return;
+      if (ignore(e.target)) return;
+      pid = e.pointerId;
+      x0 = e.clientX;
+      y0 = e.clientY;
+    });
+    root.addEventListener("pointerup", (e) => {
+      if (pid !== e.pointerId) return;
+      const dx = e.clientX - x0;
+      const dy = e.clientY - y0;
+      reset();
+      if (Math.abs(dx) < 64) return;
+      if (Math.abs(dy) > Math.abs(dx) * 0.65) return;
+      if (selectionIsNonEmptyInSentence()) return;
+      if (dx < 0) onLookupSeqNext();
+      else onLookupSeqPrev();
+    });
+    root.addEventListener("pointercancel", reset);
+  }
+
   /** 是否在可編輯欄位中（方向鍵應留給游標移動） */
   function isEditableKeyTarget(el) {
     if (!el || el === document.body) return false;
@@ -1530,6 +1573,35 @@ const App = (() => {
   }
 
   let touchSession = false;
+
+  function isPortraitReadingLayout() {
+    try {
+      return window.matchMedia("(orientation: portrait) and (max-width: 1024px)").matches;
+    } catch {
+      return false;
+    }
+  }
+
+  /** 豎屏進入專案時不要自動聚焦輸入欄（避免鍵盤把查詢列撐開） */
+  function blurPortraitLookupCompose() {
+    if (!isPortraitReadingLayout()) return;
+    const blur = () => {
+      const ae = document.activeElement;
+      if (!ae || ae === document.body) return;
+      if (
+        ae.id === "lookup-input" ||
+        ae.id === "project-bulk-input" ||
+        ae.closest?.(".lookup-compose, #project-bulk-import, .lookup-bar")
+      ) {
+        ae.blur();
+      }
+    };
+    blur();
+    requestAnimationFrame(blur);
+    setTimeout(blur, 0);
+    setTimeout(blur, 80);
+    setTimeout(blur, 240);
+  }
 
   function isCoarsePointer() {
     if (touchSession) return true;
@@ -1677,6 +1749,7 @@ const App = (() => {
   function isBlockingOverlayOpen() {
     if (!$("#vocab-edit-modal")?.classList.contains("hidden")) return true;
     if (!$("#rule-pick-modal")?.classList.contains("hidden")) return true;
+    if (!$("#rule-view-modal")?.classList.contains("hidden")) return true;
     if (!$("#projects-modal")?.classList.contains("hidden")) return true;
     if (!$("#project-entries-modal")?.classList.contains("hidden")) return true;
     if (!$("#sel-apply-pop")?.classList.contains("hidden")) return true;
@@ -1687,6 +1760,7 @@ const App = (() => {
   function dismissTransientUi() {
     if (!$("#vocab-edit-modal")?.classList.contains("hidden")) closeVocabEditModal();
     if (!$("#rule-pick-modal")?.classList.contains("hidden")) closeRulePickModal();
+    if (!$("#rule-view-modal")?.classList.contains("hidden")) closeRuleViewModal();
     if (!$("#sel-apply-pop")?.classList.contains("hidden")) {
       hideSelApplyPop();
       state.selApply = null;
@@ -2281,6 +2355,7 @@ const App = (() => {
       syncProjectBulkImport();
       showToast(`已進入專案「${p.name}」· 可貼上整首一次匯入`, "success");
     }
+    blurPortraitLookupCompose();
   }
 
   function leaveProject() {
@@ -4286,7 +4361,7 @@ const App = (() => {
   }
 
   function isSentenceSelectEdit() {
-    return Boolean(state.sentenceSelectEdit);
+    return Boolean(state.sentenceSelectEdit) && isCoarsePointer();
   }
 
   function syncSentenceSelectEditUi() {
@@ -4299,6 +4374,7 @@ const App = (() => {
   }
 
   function setSentenceSelectEdit(on) {
+    if (!isCoarsePointer()) on = false;
     const next = Boolean(on);
     const changed = next !== isSentenceSelectEdit();
     state.sentenceSelectEdit = next;
@@ -4313,10 +4389,12 @@ const App = (() => {
   }
 
   function toggleSentenceSelectEdit() {
+    if (!isCoarsePointer()) return;
     setSentenceSelectEdit(!isSentenceSelectEdit());
   }
 
   function wrapWordTipPopHtml(bodyHtml) {
+    if (!isCoarsePointer()) return bodyHtml;
     const on = isSentenceSelectEdit();
     return `<div class="word-tip-pop-inner">
       <div class="word-tip-pop-body">${bodyHtml}</div>
@@ -4405,7 +4483,7 @@ const App = (() => {
     return `<div class="sentence-text-row">
       <p class="sentence-text" id="sentence-text">${innerHtml}</p>
       <div class="sentence-text-actions">
-        ${sentenceSelectEditButtonHtml()}
+        ${isCoarsePointer() ? sentenceSelectEditButtonHtml() : ""}
         ${sentenceSpeakButtonHtml()}
       </div>
     </div>`;
@@ -4729,28 +4807,31 @@ const App = (() => {
         ? buildAnnotatedSentenceHtml(query, used, vocabLocs)
         : esc(query);
 
-    // 圖例：已收錄色點 + 未收錄紅標；補充用法不進圖例，改用右側「+補充」
     const legend = (apiLegend || [])
-      .filter((h) => !h.supplementary && h.color !== "usage")
       .map((h) => {
-        const sw =
-          h.color === "missing" || h.owned === false
+        const isSupp = h.supplementary || h.color === "usage";
+        const sw = isSupp
+          ? "gram-hl gram-hl-usage"
+          : h.color === "missing" || h.owned === false
             ? "gram-hl gram-hl-missing"
             : `gram-hl gram-hl-${h.color}`;
-        const badge = h.owned
-          ? ""
-          : `<span class="badge badge-missing-hl">未建立</span>`;
-        const btn = h.owned
-          ? `<button type="button" class="legend-link" data-scroll-rule="${esc(h.ruleId)}">${esc(
-              h.ruleTitle || h.name
-            )}</button>`
-          : `<button type="button" class="legend-link legend-link-missing" data-create-inv-idx="${h.invIdx}">${esc(
-              h.name
-            )}</button>`;
+        const badge = isSupp
+          ? `<span class="badge badge-usage">補充</span>`
+          : h.owned
+            ? ""
+            : `<span class="badge badge-missing-hl">未建立</span>`;
+        const btn =
+          h.owned || isSupp
+            ? `<button type="button" class="legend-link" data-scroll-rule="${esc(h.ruleId)}">${esc(
+                h.ruleTitle || h.name
+              )}</button>`
+            : `<button type="button" class="legend-link legend-link-missing" data-create-inv-idx="${h.invIdx}">${esc(
+                h.name
+              )}</button>`;
         return `
         <li class="legend-item">
           <span class="legend-swatch ${sw}"></span>${btn}${badge}${
-            h.owned && !h.hasSpan ? `<span class="legend-count">（句中未定位）</span>` : ""
+            h.owned && !isSupp && !h.hasSpan ? `<span class="legend-count">（句中未定位）</span>` : ""
           }
         </li>`;
       })
@@ -4780,7 +4861,7 @@ const App = (() => {
           ${hasVocab ? posUnderlineLegendHtml() : ""}
         </p>
         ${sentenceTextBlockHtml(html || esc(query))}
-        <p class="sentence-edit-hint">選取文字或<strong>點已上色片段</strong>可套用／疊加規則；下方規則卡可<strong>本句移除</strong>或<strong>手動定位</strong>。右側<strong>+補充</strong>可加入不句中上色的補充用法。</p>
+        <p class="sentence-edit-hint"><strong>點句中單字</strong>看釋義；<strong>點下方圖例</strong>查看規則。選取文字可套用／疊加。右側<strong>+補充</strong>加入不句中上色的補充用法。</p>
         ${
           !used.length
             ? `<p class="panel-note" style="margin:0.5rem 0 0">${emptyNote}</p>`
@@ -5230,7 +5311,7 @@ const App = (() => {
     const matches = result?.matches || [];
     if (!matches.length) return "";
     return `
-      <section class="panel">
+      <section class="panel lookup-owned-rules">
         <div class="panel-head">
           <h3>本地規則命中</h3>
           <span class="badge badge-local">${matches.length} 筆</span>
@@ -5353,6 +5434,7 @@ const App = (() => {
 
     function goToRuleId(id) {
       if (!id) return;
+      if (openRuleViewModal([id])) return;
       const card =
         root.querySelector(`.rule-card[data-id="${CSS.escape(id)}"]`) ||
         root.querySelector(`#rule-${CSS.escape(id)}`) ||
@@ -6590,14 +6672,125 @@ const App = (() => {
     });
   }
 
+  function collectRuleIdsFromMark(mark) {
+    if (!mark) return [];
+    const cycle = String(mark.dataset.cycleRuleIds || "")
+      .split(",")
+      .map((x) => x.trim())
+      .filter(Boolean);
+    if (cycle.length) return [...new Set(cycle)];
+    const id = String(mark.dataset.scrollRule || mark.dataset.ruleId || "").trim();
+    return id ? [id] : [];
+  }
+
+  function ruleViewLookupOpts(ruleId) {
+    const rule = RulesService.getById(ruleId);
+    if (!rule) return null;
+    const isSupp =
+      typeof RulesService.isSupplementaryUsage === "function" &&
+      RulesService.isSupplementaryUsage(rule);
+    let hasSpan = false;
+    let colorIndex = isSupp ? "usage" : 0;
+    const q = String(state.lastQuery || "");
+    const inv = state.lastInventory;
+    if (q && inv) {
+      const hl = buildApiHighlight(q, inv);
+      const h = (hl.legend || []).find((x) => String(x.ruleId) === String(ruleId));
+      const owned = (hl.ownedHits || []).find((x) => String(x.rule?.id) === String(ruleId));
+      if (h) {
+        hasSpan = h.hasSpan === true;
+        if (isSupp || h.supplementary || h.color === "usage") colorIndex = "usage";
+        else if (h.color !== "missing" && Number.isFinite(Number(h.color))) {
+          colorIndex = Number(h.color) % 8;
+        }
+      } else if (owned) {
+        hasSpan = owned.hasSpan === true;
+        colorIndex = isSupp || owned.supplementary ? "usage" : owned.colorIndex ?? 0;
+      }
+    }
+    return { rule, colorIndex, hasSpan: isSupp ? null : hasSpan };
+  }
+
+  function bindRuleViewCardExtras(root) {
+    (root || document).querySelectorAll("[data-detach-rule]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        closeRuleViewModal();
+        detachRuleFromCurrentResult(btn.dataset.detachRule);
+      });
+    });
+    (root || document).querySelectorAll("[data-locate-rule]").forEach((btn) => {
+      btn.addEventListener("click", (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        closeRuleViewModal();
+        enterLocateMode(btn.dataset.locateRule);
+      });
+    });
+  }
+
+  function openRuleViewModal(ruleIds, opts = {}) {
+    if (!isPortraitReadingLayout()) return false;
+    const ids = [...new Set((ruleIds || []).map((x) => String(x || "").trim()).filter(Boolean))];
+    const modal = $("#rule-view-modal");
+    const stack = $("#rule-view-stack");
+    const titleEl = $("#rule-view-modal-title");
+    const subEl = $("#rule-view-modal-sub");
+    if (!modal || !stack) return false;
+    const cards = [];
+    for (const id of ids) {
+      const meta = ruleViewLookupOpts(id);
+      if (!meta) continue;
+      cards.push(
+        ruleCardHtml(meta.rule, {
+          mode: "lookup",
+          colorIndex: meta.colorIndex,
+          hasSpan: meta.hasSpan,
+        })
+      );
+    }
+    if (!cards.length) return false;
+    hideSelApplyPop();
+    if (titleEl) titleEl.textContent = cards.length > 1 ? `規則（${cards.length}）` : "規則";
+    if (subEl) {
+      const span = String(opts.spanText || "").trim();
+      if (span && cards.length > 1) subEl.textContent = `「${span}」疊加 ${cards.length} 則`;
+      else if (span) subEl.textContent = `句中：「${span}」`;
+      else if (cards.length > 1) subEl.textContent = `此片段疊加 ${cards.length} 則規則`;
+      else subEl.textContent = "點關閉或空白處返回句子";
+    }
+    stack.innerHTML = cards.join("");
+    bindRuleCardActions(stack);
+    bindRuleViewCardExtras(stack);
+    modal.classList.remove("hidden");
+    return true;
+  }
+
+  function closeRuleViewModal() {
+    const modal = $("#rule-view-modal");
+    if (!modal || modal.classList.contains("hidden")) return;
+    modal.classList.add("hidden");
+    const stack = $("#rule-view-stack");
+    if (stack) stack.innerHTML = "";
+  }
+
   function onGrammarMarkClick(e, mark) {
     if (selectionIsNonEmptyInSentence()) {
       e.preventDefault();
       e.stopPropagation();
       return;
     }
+    if (isPortraitReadingLayout()) {
+      // 豎屏：點句中字只看單字；文法改點下方圖例
+      return;
+    }
     e.preventDefault();
     e.stopPropagation();
+    if (!mark.classList.contains("gram-hl-missing")) {
+      const ids = collectRuleIdsFromMark(mark);
+      if (ids.length && openRuleViewModal(ids, { spanText: String(mark.textContent || "").trim() })) {
+        return;
+      }
+    }
     const range = getMarkRangeInQuery(mark);
     if (!range?.text) {
       const id =
@@ -6607,6 +6800,7 @@ const App = (() => {
           .map((x) => x.trim())
           .filter(Boolean)[0];
       if (id) {
+        if (openRuleViewModal([id], { spanText: String(mark.textContent || "").trim() })) return;
         const card =
           document.querySelector(`.rule-card[data-id="${CSS.escape(id)}"]`) ||
           document.getElementById("rule-" + id);
@@ -7356,14 +7550,11 @@ const App = (() => {
         : apiHl.ownedHits || [];
       const ownedCount = ownedHitsForPanel.length;
       const showOwnedPanel =
-        ownedCount > 0 ||
-        // 即時 API 文法：即使 0 筆也顯示空殼提示
-        Boolean(lookupModes.apiGrammar);
+        ownedCount > 0 || Boolean(lookupModes.apiGrammar);
 
       if (showOwnedPanel) {
-        // 已收錄在上，尚未收錄在下（可本句移除／手動定位）
         bodyHtml += `
-          <section class="panel" id="lookup-owned-rules">
+          <section class="panel lookup-owned-rules" id="lookup-owned-rules">
             <div class="panel-head">
               <h3>已收錄的規則</h3>
               <span class="badge badge-local">${ownedCount} 筆 · 與句中同色</span>
@@ -7919,6 +8110,7 @@ const App = (() => {
     $("#history-filter")?.addEventListener("input", () => renderHistory());
     $("#btn-lookup-seq-prev")?.addEventListener("click", () => onLookupSeqPrev());
     $("#btn-lookup-seq-next")?.addEventListener("click", () => onLookupSeqNext());
+    bindLookupSwipeNav();
 
     // 專案
     $("#btn-projects-modal-close")?.addEventListener("click", () => closeProjectsModal());
@@ -7988,6 +8180,7 @@ const App = (() => {
     $("#btn-sel-view-rule")?.addEventListener("click", () => {
       const id = $("#btn-sel-view-rule")?.dataset?.ruleId;
       hideSelApplyPop();
+      if (id && openRuleViewModal([id])) return;
       if (id) {
         const card =
           document.querySelector(`.rule-card[data-id="${CSS.escape(id)}"]`) ||
@@ -8017,6 +8210,10 @@ const App = (() => {
     $("#btn-rule-pick-create")?.addEventListener("click", () => openCreateRuleFromSelection());
     $("#rule-pick-modal")?.addEventListener("click", (e) => {
       if (e.target === e.currentTarget) closeRulePickModal();
+    });
+    $("#btn-rule-view-close")?.addEventListener("click", () => closeRuleViewModal());
+    $("#rule-view-modal")?.addEventListener("click", (e) => {
+      if (e.target === e.currentTarget) closeRuleViewModal();
     });
     $("#rule-pick-filter")?.addEventListener("input", () => renderRulePickList());
     const dismissSelApplyIfOutside = (e) => {
@@ -8111,6 +8308,10 @@ const App = (() => {
           closeRulePickModal();
           return;
         }
+        if (!$("#rule-view-modal")?.classList.contains("hidden")) {
+          closeRuleViewModal();
+          return;
+        }
         if (!$("#sel-apply-pop")?.classList.contains("hidden")) {
           hideSelApplyPop();
           state.selApply = null;
@@ -8202,11 +8403,20 @@ const App = (() => {
   /** 量測頂欄高度，讓句中 sticky 列精準貼在下方 */
   function syncAppHeaderHeight() {
     const header = document.querySelector(".app-header");
-    if (!header) return;
-    const h = Math.ceil(header.getBoundingClientRect().height);
-    if (h > 0) {
-      document.documentElement.style.setProperty("--app-header-h", `${h}px`);
+    if (header) {
+      const h = Math.ceil(header.getBoundingClientRect().height);
+      if (h > 0) {
+        document.documentElement.style.setProperty("--app-header-h", `${h}px`);
+      }
     }
+    const vv = window.visualViewport;
+    const vh = Math.round((vv && vv.height) || window.innerHeight);
+    if (vh > 0) {
+      document.documentElement.style.setProperty("--vvh", `${vh}px`);
+    }
+    const layoutH = window.innerHeight;
+    const kbdOpen = !!(vv && layoutH - vv.height > 96);
+    document.documentElement.classList.toggle("is-kbd-open", kbdOpen);
   }
 
   async function init() {
@@ -8235,6 +8445,10 @@ const App = (() => {
     updateProjectModeUI();
     syncAppHeaderHeight();
     window.addEventListener("resize", () => syncAppHeaderHeight());
+    window.addEventListener("orientationchange", () => syncAppHeaderHeight());
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener("resize", () => syncAppHeaderHeight());
+    }
     setView("lookup");
     updateRuleCount();
     // 版面穩定後再量一次（與 Mal 對齊）
