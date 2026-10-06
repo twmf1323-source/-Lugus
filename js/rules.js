@@ -219,19 +219,22 @@ const RulesService = (() => {
       .toLowerCase()
       .normalize("NFC");
     if (!inf || inf.length < 2) return false;
-    const title = String(rule?.title || "")
-      .toLowerCase()
-      .normalize("NFC");
-    if (title.includes(inf)) return true;
+    const mentions =
+      typeof Analyzer !== "undefined" && typeof Analyzer.mentionsInfinitive === "function"
+        ? (text) => Analyzer.mentionsInfinitive(text, inf)
+        : (text) => {
+            const s = String(text || "")
+              .toLowerCase()
+              .normalize("NFC");
+            const re = new RegExp(
+              `(^|[^a-zàâäéèêëïîôùûüçœæ])${inf.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?=$|[^a-zàâäéèêëïîôùûüçœæ])`,
+              "i"
+            );
+            return re.test(s);
+          };
+    if (mentions(rule?.title || "")) return true;
     for (const kw of rule?.keywords || []) {
-      if (
-        String(kw || "")
-          .toLowerCase()
-          .normalize("NFC")
-          .includes(inf)
-      ) {
-        return true;
-      }
+      if (mentions(kw)) return true;
     }
     // 六格若以完整形收錄該動詞 paradigm，也算專屬（不靠詞尾通則）
     if (typeof Analyzer !== "undefined" && Analyzer.getParadigm) {
@@ -438,6 +441,21 @@ const RulesService = (() => {
     { key: SUPPLEMENTARY_CATEGORY, label: "補充用法" },
   ];
 
+  function isPronounGrammar(x) {
+    if (typeof FrParse !== "undefined" && typeof FrParse.isPronounGrammar === "function") {
+      return FrParse.isPronounGrammar(x);
+    }
+    if (!x || typeof x !== "object") return false;
+    const cat = String(x.category || "").trim();
+    if (cat === "代詞") return true;
+    const key = String(x.grammarKey || x.frKind || x.g || "").trim();
+    if (/^pron:/.test(key) || key === "det:dem") return true;
+    const name = String(x.name || x.title || "").trim();
+    return /代詞|主語代詞|反身代詞|副代詞|指示代詞|賓語代詞|重讀代詞|關係代詞|直接賓語|間接賓語/.test(
+      name
+    );
+  }
+
   /** 成語／特定用法等：特殊色、列表最後、不句中上色 */
   function isSupplementaryUsage(ruleOrCat) {
     const c =
@@ -595,6 +613,26 @@ const RulesService = (() => {
     ].map((x) => titleNorm(x))
   );
 
+  /** 第三人稱：lui/leur＝COI，le/la/les＝COD，不可互套 */
+  function pronounRoleConflict(rule, spanRaw, queryName) {
+    const span = String(spanRaw || "")
+      .trim()
+      .toLowerCase()
+      .normalize("NFC")
+      .replace(/^l['’]/, "l");
+    if (!span) return false;
+    const blob = [rule?.title, queryName, rule?.category]
+      .filter(Boolean)
+      .join("\n")
+      .toLowerCase()
+      .normalize("NFC");
+    const isCod = /直接賓語|objets?\s*directs?|\bcod\b/.test(blob);
+    const isCoi = /間接賓語|objets?\s*indirects?|\bcoi\b/.test(blob);
+    if (isCod && /^(lui|leur)$/.test(span)) return true;
+    if (isCoi && /^(le|la|les|l)$/.test(span)) return true;
+    return false;
+  }
+
   function isGenericGrammarKey(key) {
     const k = titleNorm(key);
     if (!k) return true;
@@ -684,16 +722,34 @@ const RulesService = (() => {
   /**
    * 標題語意分（嚴格優先；弱 includes 極低分）
    */
+  /** 使用者把直陳式現在時叫做「現實式」。括號前的名稱要整段相等，避免誤傷其他卡。 */
+  function realityPresentTitle(text) {
+    const head = String(text || "")
+      .trim()
+      .replace(/[（(].*$/, "")
+      .trim();
+    return head === "現實式";
+  }
+
   /** 時態／功能族：兩側同族可給軟加分（仍不足以單獨過門檻） */
   function grammarFamily(text) {
-    const t = titleNorm(text);
+    const raw = String(text || "");
+    const t = titleNorm(raw);
     if (!t) return "";
     if (/imparfait|未完成/.test(t)) return "imparfait";
     if (/futur|未來|将来/.test(t)) return "futur";
     if (/pass[eé]compos|複合過去|复合过去|passécomposé/.test(t)) return "pc";
     if (/participe|過去分詞|过去分词|分詞/.test(t) && /é|è|participe|分詞/.test(t)) return "pp";
-    if (/présent|现在|現在/.test(t)) return "present";
+    if (/infinitif|不定式|不定詞/.test(t)) return "inf";
+    if (realityPresentTitle(raw) || /présent|现在|現在/.test(t)) return "present";
     if (/neg|nég|否定|ne\.\.\.pas|ne…pas|nepas/.test(t) || /\bpas\b/.test(t)) return "neg";
+    if (/省音|elision|élision|quon|qu'on/.test(t)) return "elision";
+    if (/主語/.test(t)) return "subj";
+    if (/反身/.test(t)) return "se";
+    if (/副代/.test(t)) return "advpron";
+    if (/指示/.test(t)) return "dem";
+    if (/直接賓|\bcod\b/.test(t)) return "cod";
+    if (/間接賓|\bcoi\b/.test(t)) return "coi";
     return "";
   }
 
@@ -711,18 +767,24 @@ const RulesService = (() => {
       strongHits += 2;
     }
 
-    // 時態族軟加分（需搭配 span 才容易過門檻）
+    // 時態族：同族軟加分；異族重罰（不定式 ≠ avoir 現在時）
     const qFam = grammarFamily([nameNorm, zhNorm, frNorm].join(" "));
     const rFam = grammarFamily(rule.title);
     if (qFam && rFam && qFam === rFam) {
       score += 6;
+    } else if (qFam && rFam && qFam !== rFam) {
+      score -= 24;
     }
 
-    // 中文側：全等才高分；「未完成過去」⊂「第一組動詞未完成過去」給中等分
+    // 中文側：全等才高分；通名「現在時」全等不能當專屬命中
     if (zhNorm && zhNorm.length >= 2) {
       if (rZh === zhNorm) {
-        score += 22;
-        strongHits += 1;
+        if (isGenericGrammarKey(zhNorm)) {
+          score += 4;
+        } else {
+          score += 22;
+          strongHits += 1;
+        }
       } else if (rZh.includes(zhNorm) && zhNorm.length >= 4 && !isGenericGrammarKey(zhNorm)) {
         // 具體中文被規則標題包含（如「否定」太短／通名不給）
         score += 10;
@@ -744,11 +806,15 @@ const RulesService = (() => {
       }
     }
 
-    // 法語標記：全等優先；「pouvoir imparfait」vs「-er imparfait」不應因共用 imparfait 大勝
+    // 法語標記：全等優先；通名 présent 全等不能當專屬命中
     if (frNorm && frNorm.length >= 1) {
       if (rFr === frNorm) {
-        score += frNorm.length >= 3 ? 24 : 10;
-        strongHits += 1;
+        if (isGenericGrammarKey(frNorm)) {
+          score += 4;
+        } else {
+          score += frNorm.length >= 3 ? 24 : 10;
+          strongHits += 1;
+        }
       } else if (rKeys.has(frNorm) && !isGenericGrammarKey(frNorm)) {
         score += 16;
         strongHits += 1;
@@ -805,57 +871,276 @@ const RulesService = (() => {
   }
 
   /**
-   * API 盤點「已收錄」嚴格比對
-   * 優先：完整標題／專名 ＋ 句中 span 對六格／關鍵詞
-   * @returns {{ owned: boolean, rule: object|null, score: number, reason?: string }}
+   * 從標題抽出被點名的不定詞（prendre／dire／déjeuner）
+   * 通則「-er présent」沒有具體動詞 → null
    */
-  function findMatchingRule(nameOrItem) {
-    const name =
-      typeof nameOrItem === "string"
-        ? nameOrItem
-        : nameOrItem?.name || nameOrItem?.title || "";
-    const nameFr =
-      typeof nameOrItem === "object"
-        ? nameOrItem?.nameFr || nameOrItem?.nameKo || nameOrItem?.fr || ""
-        : "";
-    const nameZh =
-      typeof nameOrItem === "object" ? nameOrItem?.nameZh || nameOrItem?.zh || "" : "";
-    const span =
-      typeof nameOrItem === "object" ? String(nameOrItem?.span || "").trim() : "";
+  function extractNamedInfinitive(text) {
+    const s = String(text || "").trim();
+    if (!s) return null;
+    if (typeof Analyzer !== "undefined" && Analyzer.extractIrregularInfinitive) {
+      const irr = Analyzer.extractIrregularInfinitive(s);
+      if (irr) return irr;
+    }
+    const matches = s
+      .toLowerCase()
+      .normalize("NFC")
+      .match(/\b[a-zàâäéèêëïîôùûüçœæ]{3,}(?:er|ir|re|oir)\b/gi);
+    if (!matches) return null;
+    const infs = matches
+      .map((m) => m.toLowerCase().normalize("NFC"))
+      .filter((m) => m && !isGenericGrammarKey(m));
+    infs.sort((a, b) => b.length - a.length);
+    return infs[0] || null;
+  }
+
+  function ruleNamedInfinitive(rule) {
+    if (!rule) return null;
+    const blob = [rule.title, ...(rule.keywords || [])].filter(Boolean).join(" ");
+    return extractNamedInfinitive(blob);
+  }
+
+  function lookupKindTitle(key) {
+    if (typeof FrParse !== "undefined" && typeof FrParse.titleForGrammarKey === "function") {
+      return String(FrParse.titleForGrammarKey(key) || "").trim();
+    }
+    return "";
+  }
+
+  function lookupSeedId(key) {
+    if (typeof FrParse !== "undefined" && typeof FrParse.seedIdForKind === "function") {
+      const id = String(FrParse.seedIdForKind(key) || "").trim();
+      if (id) return id;
+    }
+    const fallback = {
+      "neg:ne-pas": "seed-negation-ne-pas",
+      "verb:être:present": "seed-etre-present",
+      "verb:etre:present": "seed-etre-present",
+      "verb:avoir:present": "seed-avoir-present",
+      "verb:pouvoir:imparfait": "seed-pouvoir-imparfait",
+      "verb:er:present": "seed-present-er",
+      "verb:er:imparfait": "seed-imparfait-er",
+      "verb:futur": "seed-futur-simple",
+      "pp:e": "seed-pp-er",
+    };
+    return fallback[String(key || "")] || "";
+  }
+
+  function infinitiveFromGrammarKey(key) {
+    const k = String(key || "");
+    const verb = /^verb:([^:]+):/.exec(k);
+    if (verb && verb[1] && verb[1] !== "er") return verb[1];
+    const pp = /^pp:irreg:(.+)$/.exec(k);
+    return pp ? pp[1] : "";
+  }
+
+  function grammarFamilyFromKey(key) {
+    const k = String(key || "").toLowerCase();
+    if (/imparfait/.test(k)) return "imparfait";
+    if (/futur/.test(k)) return "futur";
+    if (/passe-compose|passécompos/.test(k)) return "pc";
+    if (/^pp:/.test(k) || /participe/.test(k)) return "pp";
+    if (/infinitif|^inf:/.test(k)) return "inf";
+    if (/present|présent/.test(k)) return "present";
+    if (/^neg:/.test(k)) return "neg";
+    if (/pron:subj/.test(k)) return "subj";
+    if (/pron:se/.test(k)) return "se";
+    if (/pron:en|pron:y/.test(k)) return "advpron";
+    if (/det:dem|pron:dem/.test(k)) return "dem";
+    if (/pron:cod/.test(k)) return "cod";
+    if (/pron:coi/.test(k)) return "coi";
+    if (/elision|省音/.test(k)) return "elision";
+    return "";
+  }
+
+  function isRegularGroup1(inf) {
+    const s = String(inf || "")
+      .trim()
+      .toLowerCase()
+      .normalize("NFC");
+    if (!s) return false;
+    if (typeof Analyzer !== "undefined") {
+      if (Analyzer.isIrregularInfinitive && Analyzer.isIrregularInfinitive(s)) return false;
+      const g = Analyzer.verbGroupForLemma && Analyzer.verbGroupForLemma(s);
+      if (g?.code) return g.code === "1";
+    }
+    return s.endsWith("er") && s !== "aller";
+  }
+
+  function firstSpanToken(span) {
+    const s = String(span || "").trim();
+    if (!s) return "";
+    const m = s.match(/[A-Za-zÀ-ÿœæŒÆ]+(?:['’][A-Za-zÀ-ÿœæŒÆ]+)*/);
+    return m ? m[0] : s;
+  }
+
+  function verbIdentityConflict(rule, queryInf, qFam, spanIrreg) {
+    if (!rule) return true;
+    const rFam = grammarFamily(rule.title);
+    if (qFam && rFam && qFam !== rFam) return true;
+    const ruleInf = ruleNamedInfinitive(rule);
+    if (queryInf && ruleInf && ruleInf !== queryInf) return true;
+    if (
+      spanIrreg &&
+      isGeneralEndingRule(rule) &&
+      !ruleMentionsVerb(rule, spanIrreg.infinitive)
+    ) {
+      return true;
+    }
+    return false;
+  }
+
+  /**
+   * 標準種子或標準標題不在筆記本時，改掛同一時態族裡唯一的詞尾通則。
+   * 名稱正好是「現實式」的卡也算直陳式現在時：詞尾通則直接掛；
+   * 六格是完整形時只在句中形對得上才掛；六格還沒填也掛，讓已建立的卡能套上。
+   */
+  function uniqueSharedEndingRule(pool, fam, ctx) {
+    if (!fam || !pool) return null;
+    const spanTok = firstSpanToken(ctx?.span);
+    if (spanBlocksSharedEndingRule(spanTok)) return null;
+    const hits = [];
+    const seen = new Set();
+    for (const r of pool) {
+      if (!r?.id || seen.has(r.id) || isSupplementaryUsage(r)) continue;
+      const alias = fam === "present" && realityPresentTitle(r.title);
+      const general = isGeneralEndingRule(r);
+      if (!alias && !general) continue;
+      const rFam = grammarFamily(r.title);
+      if (rFam && rFam !== fam) continue;
+      if (!rFam && !alias) continue;
+      if (verbIdentityConflict(r, ctx.queryInf, fam, ctx.spanIrreg)) continue;
+      if (ctx.spanIrreg && !ruleMentionsVerb(r, ctx.spanIrreg.infinitive)) continue;
+      if (alias && !general) {
+        const filled = hasAnyEnding(r.endings);
+        if (filled && scoreRuleBySpan(r, ctx.span).matchType !== "form") continue;
+      }
+      seen.add(r.id);
+      hits.push(r);
+    }
+    return hits.length === 1 ? hits[0] : null;
+  }
+
+  /** 標題像第一／二組通則時才走通則卡，避免「現在時（dire présent）」誤掛。 */
+  function sharedFamilyFromItemName(name, nameFr, nameZh) {
+    const blob = [name, nameFr, nameZh].filter(Boolean).join(" ");
+    if (/-\s*er\b/i.test(blob) && /未完成|imparfait/i.test(blob)) return "imparfait";
+    if (/-\s*ir\b/i.test(blob) && /未完成|imparfait/i.test(blob)) return "imparfait";
+    if (/-\s*er\b/i.test(blob) && /現在|présent|現實式/i.test(blob)) return "present";
+    if (/-\s*ir\b/i.test(blob) && /現在|présent|現實式/i.test(blob)) return "present";
+    if (/簡單未來|futur simple/i.test(blob)) return "futur";
+    if (/過去分詞/.test(blob) && /-\s*é\b/.test(blob)) return "pp";
+    return "";
+  }
+
+  function matchRuleByGrammarKey(key, ctx) {
+    const k = String(key || "").trim();
+    if (!k) return { done: false };
+    const pool = ctx.pool;
+    const spanIrreg = ctx.spanIrreg;
+    const qFam = ctx.qFam;
+
+    if (k === "pp:e" && spanIrreg && /participe/.test(String(spanIrreg.tense || ""))) {
+      return { done: true, result: { owned: false, rule: null, score: 0, reason: "irregular-pp" } };
+    }
+
+    const seedId = lookupSeedId(k);
+    if (seedId) {
+      const seed = pool.find((r) => r.id === seedId) || getById(seedId);
+      if (seed && !isSupplementaryUsage(seed)) {
+        const spanTok = firstSpanToken(ctx.span);
+        if (
+          (/^verb:(er|ir):/.test(k) || k === "pp:e") &&
+          spanBlocksSharedEndingRule(spanTok)
+        ) {
+          return { done: true, result: { owned: false, rule: null, score: 0, reason: "function-span" } };
+        }
+        if (verbIdentityConflict(seed, ctx.queryInf, qFam, spanIrreg)) {
+          return { done: true, result: { owned: false, rule: null, score: 0, reason: "key-seed-conflict" } };
+        }
+        return { done: true, result: { owned: true, rule: seed, score: 96, strict: true } };
+      }
+    }
+
+    const wantTitle = lookupKindTitle(k);
+    if (wantTitle) {
+      const byTitle = pool.filter((r) => titleNorm(r.title) === titleNorm(wantTitle));
+      if (byTitle.length === 1 && !verbIdentityConflict(byTitle[0], ctx.queryInf, qFam, spanIrreg)) {
+        return { done: true, result: { owned: true, rule: byTitle[0], score: 95, strict: true } };
+      }
+    }
+
+    const inf = infinitiveFromGrammarKey(k);
+    if (inf && inf !== "er" && inf !== "ir") {
+      const shared =
+        typeof Analyzer !== "undefined" &&
+        Analyzer.usesSharedGroupPattern &&
+        Analyzer.usesSharedGroupPattern(inf);
+      if (shared) {
+        const spec =
+          Analyzer.groupPatternSpec &&
+          Analyzer.groupPatternSpec(inf, grammarFamilyFromKey(k) || ctx.qFam || "現在時");
+        const specKey = spec?.key || "";
+        const specSeed = specKey && lookupSeedId(specKey);
+        if (specSeed) {
+          const seed = pool.find((r) => r.id === specSeed) || getById(specSeed);
+          const spanTok = firstSpanToken(ctx.span);
+          if (seed && !spanBlocksSharedEndingRule(spanTok)) {
+            return { done: true, result: { owned: true, rule: seed, score: 94, strict: true } };
+          }
+        }
+        const famShared = grammarFamilyFromKey(specKey) || grammarFamilyFromKey(k) || qFam;
+        const alt = uniqueSharedEndingRule(pool, famShared, ctx);
+        if (alt) return { done: true, result: { owned: true, rule: alt, score: 72, strict: true } };
+        return { done: false };
+      }
+      const fam = grammarFamilyFromKey(k) || qFam;
+      const named = pool.filter((r) => {
+        if (!ruleMentionsVerb(r, inf)) return false;
+        const rFam = grammarFamily(r.title);
+        if (fam && rFam && fam !== rFam) return false;
+        return true;
+      });
+      if (named.length === 1) {
+        return { done: true, result: { owned: true, rule: named[0], score: 94, strict: true } };
+      }
+      return { done: true, result: { owned: false, rule: null, score: 0, reason: "verb-key-unmatched" } };
+    }
+
+    if (k.startsWith("pp:irreg:")) {
+      return { done: true, result: { owned: false, rule: null, score: 0, reason: "irregular-pp-unmatched" } };
+    }
+
+    if (/^verb:(er|ir):/.test(k) || k === "verb:futur" || k === "pp:e") {
+      const fam = grammarFamilyFromKey(k) || qFam;
+      const alt = uniqueSharedEndingRule(pool, fam, ctx);
+      if (alt) return { done: true, result: { owned: true, rule: alt, score: 72, strict: true } };
+    }
+
+    return { done: false };
+  }
+
+  /**
+   * 身分制對卡：grammarKey → 完整標題 → 唯一法語標記 → 動詞身分 → span 完整形。
+   * 不再用 includes 分數湯當「已收錄」。
+   */
+  function matchInventoryIdentity(nameOrItem) {
+    const item =
+      typeof nameOrItem === "string" ? { name: nameOrItem } : nameOrItem && typeof nameOrItem === "object" ? nameOrItem : {};
+    const name = String(item.name || item.title || "").trim();
+    const nameFr = String(item.nameFr || item.nameKo || item.fr || "").trim();
+    const nameZh = String(item.nameZh || item.zh || "").trim();
+    const span = String(item.span || "").trim();
+    const grammarKey = String(item.grammarKey || item.frKind || item.g || "").trim();
 
     const nameNorm = titleNorm(name);
     const parsed = parseBilingualTitle(name);
     const frNorm = titleNorm(nameFr || parsed.fr);
     const zhNorm = titleNorm(nameZh || parsed.zh);
+    const qFam = grammarFamily([name, zhNorm, frNorm].join(" ")) || grammarFamilyFromKey(grammarKey);
 
-    const queryKeys = new Set();
-    if (nameNorm) queryKeys.add(nameNorm);
-    if (frNorm) queryKeys.add(frNorm);
-    if (zhNorm) queryKeys.add(zhNorm);
-    if (parsed.fr) {
-      parsed.fr.split(/[\/／,，|｜\s]+/).forEach((part) => {
-        const t = titleNorm(part.replace(/^[-~〜]+/, ""));
-        if (t) queryKeys.add(t);
-      });
-    }
-    // 標題裡的不定詞／專名也進 query（pouvoir、être…）
-    const blobForVerb = [name, nameFr, nameZh, parsed.fr, parsed.zh, span]
-      .filter(Boolean)
-      .join(" ");
-    const queryVerb =
-      typeof Analyzer !== "undefined" && Analyzer.extractIrregularInfinitive
-        ? Analyzer.extractIrregularInfinitive(blobForVerb)
-        : null;
-    // 也嘗試抓標題中的 -er 不定詞（déjeuner 等規則動詞）
-    let namedInf = queryVerb;
-    if (!namedInf) {
-      const m = blobForVerb.match(
-        /\b([a-zàâäéèêëïîôùûüçœæ]{3,}(?:er|ir|re|oir))\b/i
-      );
-      if (m) namedInf = m[1].toLowerCase().normalize("NFC");
-    }
+    const titleBlob = [name, nameFr, nameZh, parsed.fr, parsed.zh].filter(Boolean).join(" ");
+    const titleInf = extractNamedInfinitive(titleBlob);
 
-    // span 若為已知不規則形，強制對應其不定詞
     let spanIrreg = null;
     if (span && typeof Analyzer !== "undefined" && Analyzer.lookupIrregular) {
       const toks = span.match(/[A-Za-zÀ-ÿœæŒÆ]+(?:['’][A-Za-zÀ-ÿœæŒÆ]+)*/g) || [];
@@ -863,133 +1148,209 @@ const RulesService = (() => {
         const hit = Analyzer.lookupIrregular(t);
         if (hit) {
           spanIrreg = hit;
-          if (!namedInf) namedInf = hit.infinitive;
           break;
         }
       }
     }
+    const queryInf =
+      infinitiveFromGrammarKey(grammarKey) ||
+      (spanIrreg && spanIrreg.infinitive) ||
+      titleInf ||
+      null;
 
-    // span → 規則命中表只建一次（A2：避免每張卡重掃全庫）
-    const spanHitMap = span ? buildSpanHitMap(span) : null;
+    const pool = rules.filter((r) => !isSupplementaryUsage(r));
 
-    const candidates = [];
+    if (grammarKey) {
+      const keyed = matchRuleByGrammarKey(grammarKey, {
+        pool,
+        span,
+        queryInf,
+        qFam,
+        spanIrreg,
+      });
+      if (keyed.done) return keyed.result;
+    }
 
-    for (const rule of rules) {
-      const titlePart = scoreRuleByTitle(rule, nameNorm, zhNorm, frNorm, queryKeys);
-      let score = titlePart.score;
-      const spanPart = span
-        ? scoreRuleBySpan(rule, span, spanHitMap)
-        : { score: 0, matchType: "none" };
-      score += spanPart.score;
+    const exact = pool.filter((r) => nameNorm && titleNorm(r.title) === nameNorm);
+    if (exact.length === 1) {
+      const r = exact[0];
+      if (pronounRoleConflict(r, span, name)) {
+        return { owned: false, rule: null, score: 0, reason: "pronoun-role" };
+      }
+      if (!verbIdentityConflict(r, queryInf, qFam, spanIrreg)) {
+        return { owned: true, rule: r, score: 100, strict: true };
+      }
+    }
 
-      // 點名同一不定詞（標題／專屬卡）
-      if (namedInf && ruleMentionsVerb(rule, namedInf)) {
-        score += 18;
-      } else if (namedInf && isGeneralEndingRule(rule)) {
-        // 有具體動詞時，通則卡降權（避免 pouvais → 第一組 imparfait）
-        score -= 12;
+    const marker = frNorm;
+    if (marker && !isGenericGrammarKey(marker)) {
+      const markerHits = pool.filter((r) => {
+        const rp = parseBilingualTitle(r.title);
+        return titleNorm(rp.fr) === marker;
+      });
+      const usable = markerHits.filter(
+        (r) => !pronounRoleConflict(r, span, name) && !verbIdentityConflict(r, queryInf, qFam, spanIrreg)
+      );
+      if (usable.length === 1) {
+        return { owned: true, rule: usable[0], score: 88, strict: true };
+      }
+      if (markerHits.length > 1) {
+        const zhHits = usable.filter((r) => titleNorm(parseBilingualTitle(r.title).zh) === zhNorm);
+        if (zhHits.length === 1) {
+          return { owned: true, rule: zhHits[0], score: 90, strict: true };
+        }
+        if (usable.length !== 1) {
+          return { owned: false, rule: null, score: 0, reason: "ambiguous-marker", strict: true };
+        }
+      }
+    }
+
+    if (queryInf) {
+      const fam = qFam || grammarFamilyFromKey(grammarKey);
+      const specific = pool.filter((r) => {
+        if (!ruleMentionsVerb(r, queryInf)) return false;
+        const rFam = grammarFamily(r.title);
+        if (fam && rFam && fam !== rFam) return false;
+        if (pronounRoleConflict(r, span, name)) return false;
+        return true;
+      });
+      if (specific.length === 1) {
+        return { owned: true, rule: specific[0], score: 86, strict: true };
       }
 
-      // 不規則 span：禁止被未點名該動詞的通則詞尾規則吞掉
-      if (spanIrreg && isGeneralEndingRule(rule) && !ruleMentionsVerb(rule, spanIrreg.infinitive)) {
-        if (spanPart.matchType === "ending") score -= 50;
-        else score -= 20;
-      }
-
-      // 僅詞尾命中、標題幾乎無關 → 不可當已收錄
-      if (spanPart.matchType === "ending" && titlePart.score < 8 && titlePart.strongHits === 0) {
-        score = Math.min(score, 15);
-      }
-
-      // 無 span 且只有通名標題分 → 壓低
-      if (!span && titlePart.genericOnly && titlePart.strongHits === 0) {
-        score = Math.min(score, 10);
-      }
-
-      if (score > 0) {
-        candidates.push({
-          rule,
-          score,
-          strongHits: titlePart.strongHits,
-          spanType: spanPart.matchType,
-          general: isGeneralEndingRule(rule),
-          named: namedInf ? ruleMentionsVerb(rule, namedInf) : false,
+      const spanTok = firstSpanToken(span);
+      const spanIsFunction = spanTok && isLocalFunctionWord(spanTok);
+      const shared =
+        !spanIsFunction &&
+        (isRegularGroup1(queryInf) ||
+          (typeof Analyzer !== "undefined" &&
+            Analyzer.usesSharedGroupPattern &&
+            Analyzer.usesSharedGroupPattern(queryInf)));
+      if (shared) {
+        const general = pool.filter((r) => {
+          if (!isGeneralEndingRule(r)) return false;
+          const rFam = grammarFamily(r.title);
+          if (fam && rFam && fam !== rFam) return false;
+          return true;
         });
+        if (general.length === 1) {
+          return { owned: true, rule: general[0], score: 70, strict: true };
+        }
+      }
+
+      if (titleInf || spanIrreg || infinitiveFromGrammarKey(grammarKey)) {
+        const keyInf = infinitiveFromGrammarKey(grammarKey);
+        if (keyInf && keyInf !== "er" && keyInf !== "ir" && !shared) {
+          return { owned: false, rule: null, score: 0, reason: "verb-unmatched", strict: true };
+        }
+        if (!shared && (spanIrreg || (titleInf && !isRegularGroup1(titleInf)))) {
+          return { owned: false, rule: null, score: 0, reason: "verb-unmatched", strict: true };
+        }
       }
     }
 
-    candidates.sort((a, b) => {
-      if (b.score !== a.score) return b.score - a.score;
-      // 同分：完整形 > 點名動詞 > 非通則 > 標題長
-      const rank = (c) =>
-        (c.spanType === "form" ? 8 : 0) +
-        (c.named ? 4 : 0) +
-        (c.general ? 0 : 2) +
-        (c.strongHits || 0);
-      if (rank(b) !== rank(a)) return rank(b) - rank(a);
-      return (b.rule.title || "").length - (a.rule.title || "").length;
-    });
-
-    let best = candidates[0] || null;
-
-    // 次佳若明顯更「專屬」（form + named）且分數接近，改採次佳
-    if (best && candidates[1]) {
-      const a = candidates[0];
-      const b = candidates[1];
-      if (
-        a.general &&
-        !b.general &&
-        b.named &&
-        a.score - b.score <= 8 &&
-        (b.spanType === "form" || b.strongHits >= a.strongHits)
-      ) {
-        best = b;
+    if (span) {
+      const spanTok = firstSpanToken(span);
+      const shortFn = spanTok && (isGenericGrammarKey(titleNorm(spanTok)) || isLocalFunctionWord(spanTok));
+      if (!shortFn) {
+        const spanHitMap = buildSpanHitMap(span);
+        const hits = [];
+        for (const r of pool) {
+          const part = scoreRuleBySpan(r, span, spanHitMap);
+          if (part.matchType !== "form") continue;
+          if (verbIdentityConflict(r, queryInf, qFam, spanIrreg)) continue;
+          if (pronounRoleConflict(r, span, name)) continue;
+          if (titleInf && ruleIsNonVerbGrammar(r) && !ruleMentionsVerb(r, titleInf)) continue;
+          const rFam = grammarFamily(r.title);
+          if (qFam && rFam && qFam !== rFam) continue;
+          hits.push(r);
+        }
+        if (hits.length === 1) {
+          return { owned: true, rule: hits[0], score: 60, strict: true };
+        }
       }
     }
 
-    if (!best) return { owned: false, rule: null, score: 0 };
+    const sharedFam = sharedFamilyFromItemName(name, nameFr, nameZh) || (qFam === "present" && realityPresentTitle(name) ? "present" : "");
+    if (sharedFam) {
+      const alt = uniqueSharedEndingRule(pool, sharedFam, {
+        span,
+        queryInf,
+        qFam: sharedFam,
+        spanIrreg,
+      });
+      if (alt) return { owned: true, rule: alt, score: 72, strict: true };
+    }
 
-    // 門檻：有 span 完整形可較低；僅標題模糊需更高
-    const genericZh =
-      zhNorm &&
-      /^(現在時|過去|未來|否定|變位|動詞|時態|未完成|未完成過去|完成|分詞|過去分詞)$/i.test(
-        zhNorm
-      );
-    const sameFamily =
-      grammarFamily([name, zhNorm, frNorm].join(" ")) &&
-      grammarFamily([name, zhNorm, frNorm].join(" ")) === grammarFamily(best.rule.title);
+    return { owned: false, rule: null, score: 0, strict: true };
+  }
 
-    let threshold = 18;
-    if (best.spanType === "form") threshold = 16;
-    else if (best.spanType === "ending" && sameFamily) threshold = 18;
-    else if (best.strongHits >= 1 && best.spanType === "ending") threshold = 20;
-    else if (best.strongHits >= 2) threshold = 18;
-    else if (genericZh && !best.spanType) threshold = 28;
-    else if (best.general && best.spanType !== "ending" && best.spanType !== "form")
-      threshold = 26;
-    else if (!span) threshold = 22;
+  function findMatchingRule(nameOrItem) {
+    return matchInventoryIdentity(nameOrItem);
+  }
 
-    // 不規則 span 卻選到未點名通則 → 否決
-    if (
-      spanIrreg &&
-      best.general &&
-      !ruleMentionsVerb(best.rule, spanIrreg.infinitive)
-    ) {
-      // 若有專屬卡在候選裡，改用專屬
-      const specific = candidates.find(
-        (c) => c.named || ruleMentionsVerb(c.rule, spanIrreg.infinitive)
-      );
-      if (specific && specific.score >= 14) {
-        best = specific;
-      } else {
-        return { owned: false, rule: null, score: best.score, reason: "irregular-needs-own-rule" };
+  /** 盤點項對卡：grammarKey 身分優先，不用分數湯 */
+  function findInventoryRule(item) {
+    return matchInventoryIdentity(item);
+  }
+
+  /**
+   * 把 API 盤點項掛到筆記本既有卡。只綁這次盤點列出的項目。
+   */
+  function attachLocalRulesToInventory(query, inventory) {
+    if (typeof Analyzer !== "undefined" && typeof Analyzer.rewriteInventoryVerbTitles === "function") {
+      inventory = Analyzer.rewriteInventoryVerbTitles(inventory);
+    }
+    const inv = inventory && typeof inventory === "object" ? { ...inventory } : { items: [] };
+    if (Array.isArray(inv.items)) {
+      inv.items = inv.items.filter((it) => !isPronounGrammar(it));
+    }
+    const items = Array.isArray(inv.items)
+      ? inv.items.map((it) => (it && typeof it === "object" ? { ...it } : it))
+      : [];
+    const kept = [];
+
+    for (const it of items) {
+      if (!it || typeof it !== "object") continue;
+      if (it.manualRuleId && getById(it.manualRuleId)) {
+        const rule = getById(it.manualRuleId);
+        it.name = rule.title;
+        const p = parseBilingualTitle(rule.title);
+        if (p.zh) it.nameZh = p.zh;
+        if (p.fr) it.nameFr = p.fr;
+        if (isSupplementaryUsage(rule)) it.category = rule.category;
+        kept.push(it);
+        continue;
       }
+      if (it.localRuleId && getById(it.localRuleId)) {
+        const rule = getById(it.localRuleId);
+        it.name = rule.title;
+        const p = parseBilingualTitle(rule.title);
+        if (p.zh) it.nameZh = p.zh;
+        if (p.fr) it.nameFr = p.fr;
+        if (!it.category) it.category = rule.category;
+        kept.push(it);
+        continue;
+      }
+      if (isSupplementaryUsage(it) || isSupplementaryUsage(it.category)) {
+        kept.push(it);
+        continue;
+      }
+      const match = findInventoryRule(it);
+      if (match?.owned && match.rule) {
+        it.localRuleId = match.rule.id;
+        it.localAttached = true;
+        it.name = match.rule.title;
+        const p = parseBilingualTitle(match.rule.title);
+        if (p.zh) it.nameZh = p.zh;
+        if (p.fr) it.nameFr = p.fr;
+        if (!it.category) it.category = match.rule.category;
+      }
+      kept.push(it);
     }
 
-    if (best.score >= threshold) {
-      return { owned: true, rule: best.rule, score: best.score };
-    }
-    return { owned: false, rule: null, score: best.score };
+    inv.items = kept;
+    return inv;
   }
 
   function expandNeedles(raw) {
@@ -1072,6 +1433,28 @@ const RulesService = (() => {
     return found;
   }
 
+  /** 冠詞／介詞 span 不可吞掉後面的名詞（l'histoire → l'） */
+  function clipGrammarLocation(src, item, loc) {
+    if (!loc) return loc;
+    const blob = `${item?.category || ""} ${item?.name || ""} ${item?.nameZh || ""}`;
+    if (!/冠詞|介詞|代詞|否定|連詞|élision|省音/.test(blob)) return loc;
+    const slice = String(loc.text || src.slice(loc.start, loc.end) || "");
+    const elision = slice.match(/^([jnmtsldc]|qu)['’]/i);
+    if (elision) {
+      const end = loc.start + elision[0].length;
+      return { ...loc, end, text: src.slice(loc.start, end) };
+    }
+    const m = slice.match(/^[A-Za-zÀ-ÿœæŒÆ']+/);
+    if (m && m[0].length < slice.replace(/\s+$/, "").length) {
+      const first = m[0];
+      if (isLocalFunctionWord(first) || first.length <= 5) {
+        const end = loc.start + first.length;
+        return { ...loc, end, text: src.slice(loc.start, end) };
+      }
+    }
+    return loc;
+  }
+
   /** 在原文定位 API item 的 span / nameFr */
   function locateApiItemInText(src, item) {
     const needles = [];
@@ -1087,10 +1470,11 @@ const RulesService = (() => {
     const seen = new Set();
     for (const n of uniq) {
       for (const loc of locateNeedle(src, n)) {
-        const key = loc.start + ":" + loc.end;
+        const clipped = clipGrammarLocation(src, item, loc);
+        const key = clipped.start + ":" + clipped.end;
         if (seen.has(key)) continue;
         seen.add(key);
-        all.push(loc);
+        all.push(clipped);
       }
     }
     return all;
@@ -1188,17 +1572,8 @@ const RulesService = (() => {
       if (pro.short === "c" || pro.short === "s") {
         push(pro.short + "'" + pro.host, "full", 8);
       }
-    } else {
-      // 無撇號：仍用 j'/n' 寫法對照格子
-      if (
-        full.length <= 6 &&
-        (/^[aeiouyàâäéèêëïîôùûühœæ]/i.test(full) ||
-          /^(ai|as|a|est|ont|aime|étais|étais)$/i.test(full))
-      ) {
-        push("j'" + full, "recomposed-j", 8);
-        push("n'" + full, "recomposed-n", 6);
-      }
     }
+    // 裸詞（entre／aime／est）不可合成 n'entre：格子 n'ai ↔ ai 由 fullFormEquals 處理
 
     const an = Analyzer.normalize(full);
     if (an && an !== full) push(an, "analyzer", 6);
@@ -1214,14 +1589,11 @@ const RulesService = (() => {
       .filter(Boolean);
   }
 
-  /** ne / n / n' 視為同一否定小詞 */
+  /** ne / n / n' 視為同一否定小詞（不含 n'ai／n'entre：那些是動詞＋前綴） */
   function asNegParticle(s) {
     const t = normalizeToken(s);
     if (!t) return null;
     if (t === "ne" || t === "n" || t === "n'") return "ne";
-    // n'ai / n'est / n'habite → 前綴 ne
-    const pro = elisionProclitic(t);
-    if (pro && pro.short === "n") return "ne";
     if (t === "pas") return "pas";
     return null;
   }
@@ -1451,6 +1823,18 @@ const RulesService = (() => {
       "là",
     ].map((w) => w.normalize("NFC").toLowerCase())
   );
+
+  /**
+   * 虛詞整詞才擋通則。j'aime／m'appelle／n'habite 的宿主是動詞，不擋「現在時（-er présent）」。
+   * entre／pas／le 仍擋。
+   */
+  function spanBlocksSharedEndingRule(spanTok) {
+    const tok = firstSpanToken(spanTok);
+    if (!tok || !isLocalFunctionWord(tok)) return false;
+    const pro = elisionProclitic(normalizeToken(tok));
+    if (pro && pro.host && !LOCAL_FUNCTION_WORDS.has(normalizeToken(pro.host))) return false;
+    return true;
+  }
 
   function isLocalFunctionWord(raw) {
     const f = normalizeToken(raw);
@@ -2180,6 +2564,7 @@ const RulesService = (() => {
     PERSONS,
     CATEGORIES,
     SUPPLEMENTARY_CATEGORY,
+    isPronounGrammar,
     isSupplementaryUsage,
     emptyEndings,
     init,
@@ -2207,6 +2592,10 @@ const RulesService = (() => {
     parseBilingualTitle,
     titleKeys,
     findMatchingRule,
+    findInventoryRule,
+    attachLocalRulesToInventory,
+    extractNamedInfinitive,
+    ruleNamedInfinitive,
     locateApiItemInText,
     locateNeedle,
     expandNeedles,
@@ -2252,10 +2641,10 @@ const RulesService = (() => {
     if (ruleIsVerbConjugationHeavy(rule)) return false;
     if (ruleLooksInfinitiveRelated(rule)) return false;
     const cat = String(rule?.category || "").trim();
-    if (/^(冠詞|代詞|介詞|句型)$/.test(cat)) return true;
+    if (/^(冠詞|代詞|介詞|句型|否定)$/.test(cat)) return true;
     const title = String(rule?.title || "");
     if (
-      /冠詞|article|定冠|不定冠|部分冠|du\b|des\b|代詞|pronoun|人稱代|關係代|介詞|préposition|\bprép\b|主有形容|指示形容|數量詞|數詞|negation|否定 ne|ne\s*\.\.\.\s*pas/i.test(
+      /冠詞|article|定冠|不定冠|部分冠|du\b|des\b|代詞|pronoun|人稱代|關係代|介詞|préposition|\bprép\b|主有形容|指示形容|數量詞|數詞|negation|否定|ne\s*[.…]*\s*pas|ne…pas/i.test(
         title
       )
     ) {
@@ -2878,7 +3267,18 @@ const RulesService = (() => {
       let tier = "weak"; // strong | medium | weak
       let hasStrongEvidence = false;
 
-      const local = localById.get(rule.id);
+      let local = localById.get(rule.id);
+      const nounHint = /名詞|noun/i.test(String(opts.pos || ""));
+      if (nounHint && local && local.matchType === "ending" && ruleIsVerbConjugationHeavy(rule)) {
+        local = null;
+      }
+      if (
+        nounHint &&
+        ruleIsVerbConjugationHeavy(rule) &&
+        !(local && local.matchType === "form")
+      ) {
+        continue;
+      }
       // 選定動詞：排除冠詞／代詞／介詞／純形容詞等（完整形命中該規則除外）
       if (
         verbConfident &&

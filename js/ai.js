@@ -16,7 +16,7 @@ const AiService = (() => {
 4. e 只寫用法，盡量無例句。不要 structure。
 5. 一次一主題。不規則必須寫具體動詞名（如 pouvoir 現在時），禁止只寫「不規則」。
 6. 標題括號內法語標記要具體，避免空泛「動詞」「時態」。
-7. 【不規則另立規則】être／avoir／aller／faire／pouvoir／vouloir／devoir／savoir／venir／prendre 等：n 必須「極短中文（不定詞＋法語標記）」（如 未完成過去（pouvoir imparfait））；d 填完整形，禁止只填通則詞尾 -ais/-e；不可做成「-er」通則卡。`;
+7. 【動詞標題】第一／二組規則動詞用通則：dure／parle → 現在時（-er présent）；finir → 現在時（-ir présent）。不規則另立「不定詞＋時態（法語）」：souvenir 現在時（présent）、pouvoir 未完成過去（imparfait）。不規則 d 填完整形，禁止只填 -ais/-e。`;
 
   const INVENTORY_SYSTEM = `你是法語文法助教。盤點句中文法，並給實詞原形與簡義。只輸出一個 JSON（無 markdown／圍欄）。
 
@@ -36,22 +36,30 @@ const AiService = (() => {
 
 文法 i：
 1. n 格式「極短中文用法名（法語標記）」，全形括號。如 **否定（ne…pas）**、過去分詞（-é）、現在時（présent）。中文極短；括號內只寫法語。
-2. **優先沿用「本地已有規則標題」原文**（user 訊息會列出）。若句中文法已有對應卡，n 必須與列表中某一標題**完全一致**（一字不改），方便系統判「已收錄」。
-3. 通則與具體動詞分開：pouvais → 若本地有「未完成過去（pouvoir imparfait）」就用該標題；勿只寫「未完成過去」或「-er imparfait」。
-4. 禁止 n 只寫「不規則」「動詞變位」「現在時」「imparfait」等統稱。
-5. 【不規則另立規則】句中不規則動詞（suis/vais/peux/veux/fais/allais/voulais…）的 n 必須含該不定詞；不可併入「第一組動詞現在時／未完成過去」通則。規則 -er 動詞才可用通則名。
-6. 只列值得建卡的點；已有本地規則也可列（標題用本地原文）。
-7. 不要在 i 寫用法長文。
-8. 一次一主題；句中只有 pouvais 不要列其他時態。
-9. **s（span）極重要**：必須是查詢原文裡原樣找得到的最短法文（indexOf／不分大小寫能命中）。
+2. **獨立盤點**：不要推測或迎合使用者的本地筆記本。n 用標準功能名；句中實際文法都要列。
+   - **規則動詞用第一／二組通則**：dure／parle／habite → 現在時（-er présent）；不要為每個 -er 動詞另立卡。
+   - **不規則另立「不定詞＋時態（法語）」**：souvient → souvenir 現在時（présent）；dit → dire 現在時（présent）。禁止 現在時（se souvenir）。
+   - **不要把代詞列成文法卡**：主語／反身／賓語／副代詞 en／指示 ça／關係代詞。代詞當詞彙即可。
+3. 禁止 n 只寫「不規則」「動詞變位」「現在時」「imparfait」等統稱。
+4. 【不規則另立規則】suis/vais/peux/dit/souvient 等：n＝「不定詞 中文時態（法語）」（être 現在時（présent）、souvenir 現在時（présent））。不可併入 -er 通則，也不可套用另一個動詞名。
+5. 只列值得建卡的點。不要參考任何本地筆記本標題。
+6. 不要在 i 寫用法長文。
+7. 一次一主題；句中只有 pouvais 不要列其他時態。
+8. **s（span）極重要**：必須是查詢原文裡原樣找得到的最短法文（indexOf／不分大小寫能命中）。
    - 正確：pouvais、n'ai、pas、suis、déjeuné
    - 錯誤：-ais、imparfait、抽象標籤、ne…pas（若句中是 n'ai 與 pas 分開，可各報或用 n'ai pas 連續字）
    - 省音保留撇號：n'ai、j'ai、l'
 10. 否定 ne…pas 可列一則；勿拆成無關的 ne、pas 兩張（除非只出現 pas）。
 11. i 寧可少而準。
+11b. **人稱代詞 COD／COI 勿混**：me／te／nous／vous 可能是直接或間接賓語。dire／parler／donner／demander 等「對人說／給」的對象是**間接賓語 COI**（te dit、lui parle），不要標成直接賓語（pronoms objets directs）。le／la／les＝COD；lui／leur＝第三人稱 COI。
+11c. **不定式不是 avoir**：d'y voir、à faire、de parler 是不定式（infinitif），n 寫「不定式（infinitif）」或「不定式（voir）」。禁止套用 avoir／être 現在時或助動詞卡。avoir 只在有 ai／as／a／avons… 或複合過去助動詞時才報。
+11d. **省音分清**：d'＝de 省音（d'y、d'un）；l'＝le／la 冠詞省音（l'histoire）。不可把 d' 標成 élision l'。
+11e. **不規則過去分詞禁止套用 -é**：assis／assise（asseoir）、mis、pris、fait、dit、écrit、ouvert、vu 不是第一組 -é。n 寫「過去分詞（assis）」或含不定詞，不要寫成「過去分詞（-é）」。-é 只用於規則 -er（déjeuné、parlé）。
+11f. **絕對構句**：須是「名詞＋分詞」獨立結構（la leçon finie, il partit）。分詞當狀語／同位（lui dit assis dans…）不要標 construction absolue。
+11g. **普通名詞不是文法**：histoire／noir／idée／année 只進 v，不要進 i（不要「名詞（histoire）」這種卡）。冠詞／介詞的 s 只標標記本身（l'、le、dans），禁止包後面的名詞（不要把 l'histoire、dans la ville 當冠詞／介詞 span）。
 
 詞彙 v（實詞原形・句中有實詞則必填）：
-12. 只列實詞（名/動/形/副/代等）；語法小詞 ne/pas/le/de 等不要進 v（文法進 i）。
+12. 列實詞，也列代詞與主有詞（on、il、elle、son、je、tu、nous、vous、se、mon、sa…）。每筆 g 必填簡短繁中義，禁止空白 g。冠詞與否定 ne/pas/le/de/un 不要進 v（le/la/les 作直接賓語代詞時要列入並寫意思）。
 13. 動詞 l 用不定詞：pouvais→pouvoir；suis→être；déjeuné→déjeuner。
 14. 名詞帶冠詞時 l 為名詞本體；g 一句內語境簡義（短）。
 15. 同 l 去重；a/b 盡量給準。
@@ -64,9 +72,11 @@ const AiService = (() => {
 18. **vg（動詞組別）· 動詞必填**：
    - "1"＝第一組（規則 -er，如 parler、déjeuner；aller 例外屬 3）
    - "2"＝第二組（規則 -ir，如 finir、choisir，nous -issons）
-   - "3"＝第三組／不規則（être、avoir、aller、faire、pouvoir、prendre、venir、voir、mettre…）
+   - "3"＝第三組／不規則（être、avoir、aller、faire、pouvoir、prendre、venir、voir、mettre，以及 -re／-oir）
+   - 規則 -er（parler、aimer、chanter、manger）必須 vg=1，不要標 3
+   - 規則 -ir 且 nous 為 -issons（finir、choisir、réussir、grandir）必須 vg=2，不要標 3
    - 非動詞：vg 填空字串 ""
-   - 例：déjeuné→l=déjeuner,vg=1；pouvais→l=pouvoir,vg=3；finis→l=finir,vg=2；suis→l=être,vg=3
+   - 例：déjeuné→l=déjeuner,vg=1；parle→l=parler,vg=1；finis→l=finir,vg=2；pouvais→l=pouvoir,vg=3；suis→l=être,vg=3
 19. **ip（音標）· 實詞必填・標句中表面形**：
    - 用法語 IPA，對應 **s 句中表面形** 的實際讀音（變位形、複數、陰陽性等），**不要**標 l 原形／不定詞的音
    - 格式：斜線包住，如 /puvɛ/、/tabl/、/ɛtʁ/
@@ -364,6 +374,13 @@ const AiService = (() => {
           name = nameFr ? `${nameZh || "文法"}（${nameFr}）` : nameZh;
         }
         if (!name) return null;
+        const zhOnly = name.replace(/[（(].*$/, "").trim();
+        if (
+          /^(名詞|普通名詞|可數名詞|不可數名詞|專有名詞|nouns?)$/i.test(zhOnly) &&
+          !/複數|性數|配合/.test(name)
+        ) {
+          return null;
+        }
         if (!nameZh || !nameFr) {
           const m = name.match(/^(.+?)[（(]\s*(.+?)\s*[）)]\s*$/);
           if (m) {
@@ -399,7 +416,8 @@ const AiService = (() => {
         }
         return item;
       })
-      .filter(Boolean);
+      .filter(Boolean)
+      .filter((it) => !(typeof FrParse !== "undefined" && FrParse.isPronounGrammar && FrParse.isPronounGrammar(it)));
 
     const rawVocab = Array.isArray(raw.v)
       ? raw.v
@@ -428,8 +446,11 @@ const AiService = (() => {
             Analyzer.isIrregularInfinitive(lemmaFinal));
         const isVerb =
           pos === "動詞" || /動詞|verb/i.test(pos) || ((!pos || pos === "其他") && looksInf);
-        // 動詞：API 未給 vg 時，本地依不定詞推估組別
-        if (!verbGroup && isVerb && typeof Analyzer !== "undefined" && Analyzer.verbGroupForLemma) {
+        // 第一／二組以本地不定詞為準，不採用 API 誤標的 3
+        if (isVerb && typeof Analyzer !== "undefined" && Analyzer.reconcileVerbGroup) {
+          const next = Analyzer.reconcileVerbGroup(verbGroup, lemmaFinal, surface);
+          if (next) verbGroup = next;
+        } else if (!verbGroup && isVerb && typeof Analyzer !== "undefined" && Analyzer.verbGroupForLemma) {
           const info = Analyzer.verbGroupForLemma(lemmaFinal);
           if (info?.code) verbGroup = info.code;
         }
@@ -459,10 +480,20 @@ const AiService = (() => {
       .filter(Boolean)
       .filter((w) => !(typeof Storage !== "undefined" && Storage.isEnglishVocabSkip && Storage.isEnglishVocabSkip(w.surface, w.lemma)));
 
-    return { summary, translation, items, vocab };
+    const tokens = Array.isArray(raw.tokens) ? raw.tokens : [];
+    const out = { summary, translation, items, vocab };
+    if (tokens.length) out.tokens = tokens;
+    if (raw.mappingFailed) out.mappingFailed = true;
+    if (raw.fallbackLegacy) out.fallbackLegacy = true;
+    const rejected = Number(raw.apiRejectedCount);
+    const unresolved = Number(raw.unresolvedGrammarCount);
+    if (Number.isFinite(rejected) && rejected > 0) out.apiRejectedCount = rejected;
+    if (Number.isFinite(unresolved) && unresolved > 0) out.unresolvedGrammarCount = unresolved;
+    if (raw.apiRepairUsed) out.apiRepairUsed = true;
+    return out;
   }
 
-  async function chatComplete({ messages, temperature = 0.3 }) {
+  async function chatComplete({ messages, temperature = 0.3, jsonObject = false }) {
     const { apiKey, baseUrl, model } = getConfig();
     if (!apiKey) throw new Error("尚未設定 API Key，請先到「設定」填入");
 
@@ -474,7 +505,13 @@ const AiService = (() => {
           "Content-Type": "application/json",
           Authorization: `Bearer ${apiKey}`,
         },
-        body: JSON.stringify({ model, messages, temperature, stream: false }),
+        body: JSON.stringify({
+          model,
+          messages,
+          temperature,
+          stream: false,
+          ...(jsonObject ? { response_format: { type: "json_object" } } : {}),
+        }),
       });
     } catch (err) {
       const msg = err?.message || String(err);
@@ -542,32 +579,199 @@ const AiService = (() => {
 
 規則：
 1. 禁止輸出文法陣列 i／items；不要寫變位通則、否定結構等文法卡。
-2. v 只列實詞；ne/pas/le/de 等小詞不要進 v。
-3. 動詞 l 用不定詞；名詞 l 為名詞本體。
-4. r：名詞／有性形容詞填 m|f|mf；動詞等填 ""。
-5. vg：動詞填 1|2|3；非動詞 ""。
-6. ip：實詞必填 IPA，必須是 **s 句中表面形** 的讀音（變位／複數等），禁止標 l 原形音。例：s=pouvais→/puvɛ/；s=suis→/sɥi/。
-7. 同 l 可多筆不同 s；a/b 盡量準。
-8. 夾雜的英文（翻譯行、yeah／baby／oh、the／you／I 等）不要列入 v。`;
+2. v 要列實詞，也要列代詞與主有詞：on、il、elle、je、tu、nous、vous、ils、elles、me、te、se、lui、mon／ma／mes、ton／ta／tes、son／sa／ses、notre、votre。每筆 g 必填簡短繁中義（on→有人／我們，son→他的／她的，il→他，elle→她）。g 空白的詞不要放進 v。
+3. 冠詞與否定 ne／pas／le／la／un／de／du／des 不要進 v。le／la／les 若是直接賓語代詞才列入，並寫意思。
+4. 動詞 l 用不定詞；名詞 l 為名詞本體。
+5. r：名詞／有性形容詞填 m|f|mf；動詞等填 ""。
+6. vg：動詞填 1|2|3；非動詞 ""。規則 -er 是 1，規則 -ir（finir 型，nous -issons）是 2。不要把第一組、第二組標成 3。只有真正不規則（être、aller、pouvoir、-re、-oir、venir／partir／ouvrir 型）才是 3。
+7. ip：實詞必填 IPA，必須是 **s 句中表面形** 的讀音（變位／複數等），禁止標 l 原形音。例：s=pouvais→/puvɛ/；s=suis→/sɥi/。代詞可寫 ip，沒有把握可留空，但 g 仍必填。
+8. 同 l 可多筆不同 s；a/b 盡量準。
+9. 夾雜的英文（翻譯行、yeah／baby／oh、the／you／I 等）不要列入 v。`;
 
-  async function inventoryGrammar(query, localTitles = []) {
+  const MAP_SYSTEM = `你是法語文法審核器。只審「需消歧」項目並給整句翻譯。本地高信心項已判定，禁止改判或否決。不知道使用者有哪些本地卡。只輸出 JSON。
+
+格式：{"u":"短摘要","t":"整句繁中翻譯","fn":[{"q":"清單ID或new:序號","x":"confirmed|rejected|reclassified|unknown","g":"穩定文法key","n":"極短中文名（法語標記）","a":0,"b":0,"c":"變位|時態|否定|代詞|介詞|冠詞|句型|形容詞|其他","f":"h|m|l","e":"短理由"}]}
+
+硬性規則：
+1. 必處理清單每個 ID 在 fn 恰好一次。confirmed＝此處成立；reclassified＝種類不對、改 g/n；rejected＝此處不成立；unknown＝無法判斷。
+2. rejected／unknown 可省 n/g/a/b；confirmed／reclassified 必填 g/n/a/b/c/f。清單外補漏用 q="new:1" 起編。
+3. g 必須是 ASCII 語義鍵（article:def、pron:cod、pron:coi、prep:en、prep:de、verb:etre:present、inf:infinitif），不可用本地卡名。
+4. a/b 是切詞編號含兩端，只蓋文法標記，不要包後面實詞。
+5. 確認項 n 必須等於清單名稱。改判：規則 -er／-ir 用 現在時（-er présent）／現在時（-ir présent）；不規則用 souvenir 現在時（présent）。禁止把規則動詞改成 durer 現在時（présent）。
+6. 同形異義依語境：le/la/les 後接動詞＝pron:cod，後接名詞＝article:def；en 後接地名／語言＝prep:en，否則 pron:en；leur 後接名詞＝det:poss，否則 pron:coi。
+7. 不要否決或改寫「已本地確認」列。不要把普通名詞當文法。不要把代詞（je／on／se／en／ça／lui）列成文法。t 必填繁中翻譯。`;
+
+  /**
+   * 切詞後請模型把區間對上文法功能（不傳本地卡名）。
+   */
+  async function mapGrammarFunctions(query, tokens, candidates, checklistInput, repairOnly = false) {
+    const q = String(query || "").trim();
+    const checklist = Array.isArray(checklistInput)
+      ? checklistInput
+      : FrParse.grammarChecklist(tokens, candidates, { apiOnly: true });
+    const tokenLines =
+      typeof FrParse !== "undefined" && FrParse.compactTokenLines
+        ? FrParse.compactTokenLines(tokens)
+        : "";
+    const disambForPrompt = (candidates || []).filter((c) => c.needsDisambiguation);
+    const candLines =
+      typeof FrParse !== "undefined" && FrParse.compactCandidateLines
+        ? FrParse.compactCandidateLines(disambForPrompt)
+        : "";
+    const localLines =
+      typeof FrParse.compactLocalConfirmedLines === "function"
+        ? FrParse.compactLocalConfirmedLines(candidates)
+        : "";
+    const checklistLines =
+      typeof FrParse.compactChecklistLines === "function"
+        ? FrParse.compactChecklistLines(checklist)
+        : "";
+    const content = await chatComplete({
+      messages: [
+        { role: "system", content: MAP_SYSTEM },
+        {
+          role: "user",
+          content: `原文：\n${q}\n\n切詞：\n${tokenLines}\n\n需消歧候選：\n${candLines || "（無）"}\n\n已本地確認（禁止改判／否決）：\n${localLines || "（無）"}\n\n必處理清單（每個 ID 恰答一次）：\n${checklistLines || "（空；仍須填 t 翻譯，可補 new 文法）"}${
+            repairOnly ? "\n\n這是補查：只回答上列未完成 ID，不要新增 new 項目。" : ""
+          }`,
+        },
+      ],
+      temperature: 0.2,
+      jsonObject: true,
+    });
+    return FrParse.parseMappedFunctions(extractJson(content));
+  }
+
+  function mergeMappedGrammar(base, patch) {
+    const left = base || {};
+    const right = patch || {};
+    const decisionMap = new Map();
+    for (const d of [...(left.decisions || []), ...(right.decisions || [])]) {
+      const id = String(d?.candidateId || "").trim();
+      if (id) decisionMap.set(id, d);
+    }
+    const fnMap = new Map();
+    for (const fn of [...(left.functions || []), ...(right.functions || [])]) {
+      const id = String(fn?.candidateId || "").trim();
+      const key = id || `${fn?.grammarKey || fn?.name || "?"}:${fn?.tokenFrom}:${fn?.tokenTo}`;
+      fnMap.set(key, fn);
+    }
+    const rejected = new Set(
+      [...decisionMap.values()]
+        .filter((d) => d.status === "rejected" || d.status === "unknown")
+        .map((d) => d.candidateId)
+    );
+    return {
+      functions: [...fnMap.values()].filter(
+        (fn) => !fn.candidateId || !rejected.has(fn.candidateId)
+      ),
+      decisions: [...decisionMap.values()],
+      translation: left.translation || right.translation || "",
+      summary: left.summary || right.summary || "",
+    };
+  }
+
+  async function repairGrammarFunctions(query, tokens, candidates, unresolved) {
+    const ids = new Set((unresolved || []).map((x) => x.id));
+    const relevant = (candidates || []).filter((c) => ids.has(FrParse.candidateDecisionId(c)));
+    return mapGrammarFunctions(query, tokens, relevant, unresolved, true);
+  }
+
+  /**
+   * 先本地切詞、再獨立對卡。切詞失敗時由呼叫端回退舊盤點。
+   */
+  async function inventoryByFrParse(query, opts = {}) {
+    const q = String(query || "").trim();
+    if (!q) throw new Error("請輸入查詢內容");
+    if (typeof FrParse === "undefined" || !FrParse.tokenize) {
+      throw new Error("FrParse 未載入");
+    }
+
+    const tokens = FrParse.tokenize(q);
+    if (!tokens.length) throw new Error("切詞結果沒有有效語素");
+
+    const candidates = FrParse.deterministicFunctions(q, tokens);
+    const localConfirmed =
+      typeof FrParse.localConfirmedFromCandidates === "function"
+        ? FrParse.localConfirmedFromCandidates(candidates)
+        : { functions: [], decisions: [] };
+    const checklist = FrParse.grammarChecklist(tokens, candidates, { apiOnly: true });
+    let mapped = {
+      functions: localConfirmed.functions.slice(),
+      decisions: localConfirmed.decisions.slice(),
+      translation: "",
+      summary: "",
+    };
+    let firstMappingFailed = false;
+    try {
+      const apiMapped = await mapGrammarFunctions(q, tokens, candidates, checklist);
+      mapped = mergeMappedGrammar(mapped, apiMapped);
+    } catch (err) {
+      console.warn("[mapGrammarFunctions]", err);
+      firstMappingFailed = true;
+      mapped.summary = mapped.summary || "切詞完成；消歧未完成，僅列出高信心項目";
+    }
+
+    let unresolved = FrParse.unresolvedGrammarChecklist(checklist, mapped);
+    let apiRepairUsed = false;
+    if (unresolved.length) {
+      apiRepairUsed = true;
+      try {
+        const repaired = await repairGrammarFunctions(q, tokens, candidates, unresolved);
+        mapped = mergeMappedGrammar(mapped, repaired);
+      } catch (err) {
+        console.warn("[repairGrammarFunctions]", err);
+      }
+      unresolved = FrParse.unresolvedGrammarChecklist(checklist, mapped);
+    }
+    const mappingFailed = unresolved.length > 0;
+    const items = FrParse.functionsToItems(tokens, mapped.functions, candidates, {
+      mappingFailed,
+      src: q,
+      candidateDecisions: mapped.decisions,
+    });
+    const vocab = opts.skipVocab ? [] : FrParse.tokensToVocab(tokens);
+    const nTok = tokens.filter((t) => t.pos !== "標點" && t.pos !== "空白").length;
+    const apiRejectedCount = (mapped.decisions || []).filter((d) => d.status === "rejected").length;
+    return {
+      summary:
+        mapped.summary ||
+        (mappingFailed
+          ? `切詞 ${nTok} 塊 · 尚有 ${unresolved.length} 項待確認`
+          : `切詞 ${nTok} 塊 · 文法 ${items.length} 點`),
+      translation: mapped.translation || "",
+      items,
+      vocab,
+      tokens: FrParse.slimTokens(tokens),
+      mappingFailed,
+      firstMappingFailed,
+      apiRejectedCount,
+      unresolvedGrammarCount: unresolved.length,
+      apiRepairUsed,
+    };
+  }
+
+  async function inventoryGrammar(query, _localTitles = []) {
     const q = String(query || "").trim();
     if (!q) throw new Error("請輸入查詢內容");
 
-    const titles = (localTitles || []).map((t) => String(t || "").trim()).filter(Boolean);
-    const titleList = titles.slice(0, 100).join("\n") || "（尚無本地規則）";
     const content = await chatComplete({
       messages: [
         { role: "system", content: INVENTORY_SYSTEM },
         {
           role: "user",
-          content: `查詢內容：\n${q}\n\n本地已有規則標題（若文法已收錄，i[].n 請優先複製下列標題原文，勿改寫）：\n${titleList}\n\n請輸出短鍵 JSON 盤點（含 v 詞彙）。\n- 名詞／形容詞 v 項必須填 r 性別（m／f／mf）；動詞 r 填 ""、vg 填 1|2|3\n- 實詞 v 項必須填 ip＝**句中表面形 s 的 IPA**（變位音），勿標原形 l 的音\n- i[].s 必須是原文中找得到的片段\n- 不規則動詞勿套第一組通則標題`,
+          content: `查詢內容：\n${q}\n\n請先獨立盤點句中所有實際文法，不參考任何本地筆記本內容。請輸出短鍵 JSON（u/t/i/v）。\n- 名詞／形容詞 v 項必須填 r 性別（m／f／mf）；動詞 r 填 ""、vg 填 1|2|3\n- 實詞 v 項必須填 ip＝**句中表面形 s 的 IPA**（變位音），勿標原形 l 的音\n- i[].s 必須是原文中找得到的片段\n- 不規則動詞勿套第一組通則標題，也勿因同為「現在時」而套用其他動詞名（dit ≠ prendre）`,
         },
       ],
       temperature: 0.15,
+      jsonObject: true,
     });
 
-    return normalizeInventory(extractJson(content));
+    const inv = normalizeInventory(extractJson(content));
+    if (typeof FrParse !== "undefined" && FrParse.ensureClosedClassVocab) {
+      inv.vocab = FrParse.ensureClosedClassVocab(q, inv.vocab);
+    }
+    return inv;
   }
 
   /**
@@ -593,6 +797,11 @@ const AiService = (() => {
     inv.items = [];
     inv.mode = "vocab-only";
     inv.source = inv.source || "api-vocab";
+    if (typeof FrParse !== "undefined" && FrParse.ensureClosedClassVocab) {
+      inv.vocab = FrParse.ensureClosedClassVocab(q, inv.vocab);
+    } else {
+      inv.vocab = (inv.vocab || []).filter((w) => String(w.gloss || "").trim() && String(w.surface || w.lemma || "").trim());
+    }
     if (!inv.summary) inv.summary = `API 單字：${(inv.vocab || []).length} 詞`;
     return inv;
   }
@@ -640,10 +849,223 @@ const AiService = (() => {
             : parsed
         : null;
     const inv = normalizeInventory({ u: "", t: "", i: [], v: raw ? [raw] : [] });
-    const w = (inv.vocab || [])[0];
-    if (!w) throw new Error("AI 未回傳可用的單字資訊");
+    let w = (inv.vocab || [])[0];
+    if (w && !w.surface) w.surface = surf;
+    if (typeof FrParse !== "undefined" && FrParse.ensureClosedClassVocab) {
+      const filled = FrParse.ensureClosedClassVocab(ctx || surf, w ? [w] : [{ surface: surf }]);
+      const form = surf.normalize("NFC").toLowerCase();
+      w =
+        filled.find((item) => String(item.surface || "").normalize("NFC").toLowerCase() === form) ||
+        filled[0] ||
+        w;
+    }
+    if (!w || !String(w.gloss || "").trim()) throw new Error("AI 未回傳這個詞的意思");
     if (!w.surface) w.surface = surf;
     return w;
+  }
+
+  const LYRIC_SPLIT_SYSTEM = `你是法語歌詞編輯。把文本依「畫面／短語／子句」切開，讓每一行是一個完整意思單位。
+
+必須只輸出一個 JSON 物件（不要 markdown、不要圍欄、不要其他文字）：
+{"lines":["第一行","第二行"]}
+
+規則：
+1. 不要改寫、不要翻譯、不要增刪用字、不要加標點。只決定換行。原文順序與用字必須原樣保留。
+2. 空白是單詞分隔，不是行界：不要每個空格都斷行。已有換行可當句界；不要合併意思不相接的行。
+3. 每一行最多 36 字（含空格與標點，一字算 1）。超過 36 字必須再切；已 ≤36 且意思完整的行不要再切。
+4. 切在「畫面／短語／子句交界」，不要切在修飾關係中間：
+   - 冠詞＋名詞（le ciel、l'amour、une chanson）整組保留。
+   - 介詞短語（sous le ciel、dans le cœur、d'aujourd'hui）盡量整組保留。
+   - 代詞＋動詞（je t'aime、ne me quitte、s'envole）不要切開。
+   - 省音（l'、d'、j'、n'、c'、qu'、s'）絕對不要與後面的詞切開。
+5. 不要把單詞從中間切斷，也不要切斷連字號詞（peut-être）。
+6. 連接詞 et／mais／ou／puis 可當切點（切在連接詞之前）。
+
+正確例子：
+輸入：Sous le ciel de Paris s'envole une chanson elle est née d'aujourd'hui dans le cœur d'un garçon
+輸出：{"lines":["Sous le ciel de Paris","s'envole une chanson","elle est née d'aujourd'hui","dans le cœur d'un garçon"]}`;
+
+  const PHONE_LINE_SOFT = 28;
+  const PHONE_LINE_HARD = 36;
+  const FR_CLITIC =
+    /^(?:l|d|j|n|c|s|m|t|qu|le|la|les|un|une|des|de|du|au|aux|je|tu|il|ils|elle|elles|on|ce|cet|cette|mon|ma|mes|ton|ta|tes|son|sa|ses|ne|me|te|se|y|en|dans|sur|sous|vers|chez|avec|pour|par|sans)$/i;
+  const FR_CONJ = /^(?:et|mais|ou|puis|donc|car|ni|quand|lorsque|si|comme|parce)$/i;
+  const FR_CLAUSE_START =
+    /^(?:je|tu|il|elle|on|nous|vous|ils|elles|dans|sur|sous|vers|chez|avec|pour|sans)$/i;
+
+  function charLen(s) {
+    return Array.from(String(s || "")).length;
+  }
+
+  function compactSource(s) {
+    return String(s || "").replace(/\s+/g, "");
+  }
+
+  function indexAfterChars(s, count) {
+    return Array.from(String(s || "")).slice(0, Math.max(0, count)).join("").length;
+  }
+
+  function frWordBefore(chars, i) {
+    let end = i;
+    while (end > 0 && /\s/.test(chars[end - 1])) end -= 1;
+    let start = end;
+    while (start > 0 && /[A-Za-zÀ-ÿĀ-ž'’\-]/.test(chars[start - 1])) start -= 1;
+    return chars.slice(start, end).join("").toLowerCase();
+  }
+
+  function frWordAfter(chars, i) {
+    let start = i;
+    while (start < chars.length && /\s/.test(chars[start])) start += 1;
+    let end = start;
+    while (end < chars.length && /[A-Za-zÀ-ÿĀ-ž'’\-]/.test(chars[end])) end += 1;
+    return chars.slice(start, end).join("").toLowerCase();
+  }
+
+  function isDanglingLeftWord(w) {
+    const s = String(w || "").toLowerCase();
+    if (FR_CLITIC.test(s)) return true;
+    if (/^[ldjncsmqt]u?['’]$/.test(s)) return true;
+    return false;
+  }
+
+  function scoreMeaningCut(chars, i) {
+    const n = chars.length;
+    if (i < 8 || i > n - 4) return -1;
+    const last = chars[i - 1] || "";
+    const next = chars[i] || "";
+    if (last === "'" || last === "’" || last === "-") return -1;
+    if (/[A-Za-zÀ-ÿ]/.test(last) && /[A-Za-zÀ-ÿ]/.test(next)) return -1;
+    const atBound = /\s/.test(last) || /\s/.test(next) || /[.,;:!?…»"]/.test(last);
+    if (!atBound) return -1;
+    if (isDanglingLeftWord(frWordBefore(chars, i))) return -1;
+    const rightFull = frWordAfter(chars, i);
+    const rightW = rightFull.replace(/['’].*$/, "");
+    let score = 0;
+    if (/[.!?…]/.test(last)) score += 100;
+    else if (/[,;:]/.test(last)) score += 86;
+    else if (FR_CONJ.test(rightW)) score += 74;
+    else if (FR_CLAUSE_START.test(rightW) || /^(?:[sjnmt]['’])[a-zà-ÿ]{2,}/i.test(rightFull)) {
+      score += 70;
+    }
+    else if (FR_CONJ.test(frWordBefore(chars, i))) score += 22;
+    else if (/\s/.test(last) || /\s/.test(next)) score += 36;
+    else return -1;
+    if (i <= PHONE_LINE_HARD) score += 8;
+    const dist = Math.abs(i - PHONE_LINE_SOFT);
+    score += Math.max(0, 14 - dist);
+    return score;
+  }
+
+  function findMeaningCut(s) {
+    const chars = Array.from(String(s || ""));
+    const n = chars.length;
+    if (n <= PHONE_LINE_HARD) return 0;
+    const min = 8;
+    const max = Math.min(PHONE_LINE_HARD, n - 4);
+    let bestI = 0;
+    let bestScore = 9;
+    for (let i = max; i >= min; i -= 1) {
+      const sc = scoreMeaningCut(chars, i);
+      if (sc > bestScore) {
+        bestScore = sc;
+        bestI = i;
+      }
+    }
+    if (bestI) return indexAfterChars(s, bestI);
+    for (let i = max; i >= min; i -= 1) {
+      if (/\s/.test(chars[i - 1]) || /\s/.test(chars[i])) return indexAfterChars(s, i);
+    }
+    return 0;
+  }
+
+  function splitLongLineByMeaning(line) {
+    const s = String(line || "").trim();
+    if (!s) return [];
+    if (charLen(s) <= PHONE_LINE_HARD) return [s];
+    const cut = findMeaningCut(s);
+    if (!cut) {
+      const chars = Array.from(s);
+      const left = chars.slice(0, PHONE_LINE_HARD).join("");
+      const right = chars.slice(PHONE_LINE_HARD).join("");
+      return [left, ...splitLongLineByMeaning(right)];
+    }
+    const left = s.slice(0, cut).trim();
+    const right = s.slice(cut).trim();
+    if (!left || !right) return [s];
+    return [left, ...splitLongLineByMeaning(right)];
+  }
+
+  function enforcePhoneLineLength(lines) {
+    return (Array.isArray(lines) ? lines : [lines])
+      .map((x) => String(x || "").trim())
+      .filter(Boolean)
+      .flatMap((line) => splitLongLineByMeaning(line));
+  }
+
+  function chunkLyricText(text) {
+    const lines = String(text || "").split(/\r?\n/);
+    const chunks = [];
+    let buf = [];
+    let size = 0;
+    const flush = () => {
+      if (!buf.length) return;
+      chunks.push(buf.join("\n"));
+      buf = [];
+      size = 0;
+    };
+    for (const line of lines) {
+      const add = line.length + 1;
+      if (buf.length && size + add > 1400) flush();
+      buf.push(line);
+      size += add;
+    }
+    flush();
+    return chunks.length ? chunks : [String(text || "")];
+  }
+
+  function normalizeSplitLines(parsed) {
+    let arr = [];
+    if (Array.isArray(parsed)) arr = parsed;
+    else if (Array.isArray(parsed?.lines)) arr = parsed.lines;
+    else if (Array.isArray(parsed?.sentences)) arr = parsed.sentences;
+    return arr.map((x) => String(x || "").trim()).filter(Boolean);
+  }
+
+  async function splitLyricChunk(chunk) {
+    const content = await chatComplete({
+      messages: [
+        { role: "system", content: LYRIC_SPLIT_SYSTEM },
+        {
+          role: "user",
+          content: `請依畫面／短語切開，每行最多 36 字。空白是詞界不是行界。只輸出 JSON。\n\n${chunk}`,
+        },
+      ],
+      temperature: 0.15,
+      jsonObject: true,
+    });
+    return normalizeSplitLines(extractJson(content));
+  }
+
+  async function splitLyricLines(text) {
+    const raw = String(text || "");
+    if (!raw.trim()) throw new Error("請先貼上歌詞或文本");
+    const chunks = chunkLyricText(raw);
+    const collected = [];
+    for (const chunk of chunks) {
+      const part = await splitLyricChunk(chunk);
+      collected.push(...part);
+    }
+    const lines = enforcePhoneLineLength(collected);
+    if (!lines.length) throw new Error("AI 沒有回傳可分行的句子");
+    const src = compactSource(raw);
+    const out = compactSource(lines.join(""));
+    if (src && out && src !== out) {
+      if (src.includes(out) || out.includes(src)) {
+        return lines;
+      }
+      throw new Error("AI 改動了原文用字，已取消套用");
+    }
+    return lines;
   }
 
   async function testConnection() {
@@ -661,6 +1083,10 @@ const AiService = (() => {
     getConfig,
     completeRuleFromTitle,
     completeWordFromSurface,
+    splitLyricLines,
+    enforcePhoneLineLength,
+    mapGrammarFunctions,
+    inventoryByFrParse,
     inventoryGrammar,
     inventoryVocabOnly,
     normalizeDraft,

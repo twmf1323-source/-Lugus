@@ -175,4 +175,47 @@ if (u.backend !== "idb") fail("usage backend");
 if (!(u.idbBytes > 0)) fail("usage idbBytes");
 ok("usage reports IndexedDB size");
 
+ls2.set(
+  "fvgn_vocab_bank_v1",
+  JSON.stringify({
+    bySurface: {
+      bonjour: {
+        surface: "bonjour",
+        senses: [{ id: "vs_1", lemma: "bonjour", gloss: "你好", pos: "感嘆詞" }],
+        primarySenseId: "vs_1",
+      },
+    },
+    byLemma: {},
+  })
+);
+ls2.set(
+  "fvgn_history_v1",
+  JSON.stringify([{ id: "h1", query: "bonjour", vocab: [{ surface: "bonjour", gloss: "你好" }] }])
+);
+ls2.set("fvgn_rules_v1", JSON.stringify([{ id: "custom", title: "自訂" }]));
+ls2.set("fvgn_todos_v1", JSON.stringify([{ id: "t1", title: "待辦" }]));
+ls2.set("fvgn_settings_v1", JSON.stringify({ apiKey: "secret-key", apiProvider: "google" }));
+ls2.set("fvgn_active_project_v1", "proj_1");
+await Storage2.clearAllNotebookData();
+if (Storage2.listProjects().length) fail("projects remain");
+if (Storage2.loadHistory().length) fail("history remains");
+if (ls2.get("fvgn_vocab_bank_v1")) fail("vocab key remains");
+if (ls2.get("fvgn_rules_v1")) fail("rules key remains");
+if (ls2.get("fvgn_todos_v1")) fail("todos remain");
+if (ls2.get("fvgn_active_project_v1")) fail("active project remains");
+const settings = JSON.parse(ls2.get("fvgn_settings_v1"));
+if (settings.apiKey !== "secret-key") fail("api key wiped");
+const idbAfter = idb._dbs.get("fvgn_idb_v1").get("kv").get("projects_v1");
+if (!idbAfter || idbAfter.projects.length || idbAfter.collections.length) {
+  fail("idb projects remain");
+}
+ok("clear all keeps API key and wipes projects, vocab, history, rules, todos");
+
+const Storage3 = loadStorage(ls2, idb);
+await Storage3.initProjectsDb();
+if (Storage3.listProjects().length) fail("projects resurrected");
+if (Storage3.harvestVocabBankFromSnapshots()) fail("harvest restored vocab");
+if (ls2.get("fvgn_vocab_bank_v1")) fail("vocab written by harvest");
+ok("reload does not bring projects or vocab back");
+
 console.log("all ok");

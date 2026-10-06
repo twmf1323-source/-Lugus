@@ -140,6 +140,24 @@ const Analyzer = (() => {
         ils: "venaient",
       },
     },
+    souvenir: {
+      présent: {
+        je: "souviens",
+        tu: "souviens",
+        il: "souvient",
+        nous: "souvenons",
+        vous: "souvenez",
+        ils: "souviennent",
+      },
+      imparfait: {
+        je: "souvenais",
+        tu: "souvenais",
+        il: "souvenait",
+        nous: "souvenions",
+        vous: "souveniez",
+        ils: "souvenaient",
+      },
+    },
     prendre: {
       présent: {
         je: "prends",
@@ -369,6 +387,57 @@ const Analyzer = (() => {
     }
   }
 
+  /** 不規則過去分詞（assis ≠ -é；未列在直陳式表內的也要擋通則） */
+  const IRREGULAR_PARTICIPLES = {
+    assis: "asseoir",
+    assise: "asseoir",
+    assises: "asseoir",
+    mis: "mettre",
+    mise: "mettre",
+    mises: "mettre",
+    pris: "prendre",
+    prise: "prendre",
+    prises: "prendre",
+    faite: "faire",
+    écrit: "écrire",
+    écrite: "écrire",
+    écrites: "écrire",
+    ouvert: "ouvrir",
+    ouverte: "ouvrir",
+    ouvertes: "ouvrir",
+    vu: "voir",
+    vue: "voir",
+    vues: "voir",
+    dû: "devoir",
+    due: "devoir",
+    dues: "devoir",
+    mort: "mourir",
+    morte: "mourir",
+    mortes: "mourir",
+    né: "naître",
+    née: "naître",
+    nées: "naître",
+    dite: "dire",
+    couvert: "couvrir",
+    couverte: "couvrir",
+    offert: "offrir",
+    offerte: "offrir",
+    souffert: "souffrir",
+    soufferte: "souffrir",
+  };
+  for (const [form, infinitive] of Object.entries(IRREGULAR_PARTICIPLES)) {
+    IRREGULAR_INFINITIVES.add(infinitive);
+    if (!IRREGULARS[form]) {
+      IRREGULARS[form] = {
+        infinitive,
+        group: "3",
+        tense: "participe passé",
+        person: "",
+        irregular: true,
+      };
+    }
+  }
+
   // 長詞尾優先
   const ENDING_PATTERNS = [
     { ending: "aient", tense: "imparfait", person: "ils/elles", strip: 5 },
@@ -433,16 +502,39 @@ const Analyzer = (() => {
     return IRREGULAR_INFINITIVES.has(t);
   }
 
+  const LATIN_LETTER_CLASS = "a-zàâäéèêëïîôùûüçœæ";
+
+  function escapeRe(s) {
+    return String(s || "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  }
+
+  /** 整詞點名不定詞（avoir 不含 voir；savoir 不含 avoir） */
+  function mentionsInfinitive(text, inf) {
+    const s = String(text || "")
+      .toLowerCase()
+      .normalize("NFC");
+    const i = String(inf || "")
+      .trim()
+      .toLowerCase()
+      .normalize("NFC");
+    if (!s || i.length < 2) return false;
+    const re = new RegExp(
+      `(^|[^${LATIN_LETTER_CLASS}])${escapeRe(i)}(?=$|[^${LATIN_LETTER_CLASS}])`,
+      "i"
+    );
+    return re.test(s);
+  }
+
   /** 從標題／字串抽出已知不規則不定詞（若有） */
   function extractIrregularInfinitive(text) {
     const s = String(text || "")
       .toLowerCase()
       .normalize("NFC");
     if (!s) return null;
-    // 較長不定詞優先（prendre 優於 rendre 誤撞較少）
+    // 較長不定詞優先（prendre 優於 rendre 誤撞較少）；必須整詞
     const list = [...IRREGULAR_INFINITIVES].sort((a, b) => b.length - a.length);
     for (const inf of list) {
-      if (s.includes(inf)) return inf;
+      if (mentionsInfinitive(s, inf)) return inf;
     }
     return null;
   }
@@ -484,6 +576,7 @@ const Analyzer = (() => {
       const thirdIr = new Set([
         "venir",
         "tenir",
+        "souvenir",
         "devenir",
         "revenir",
         "obtenir",
@@ -664,7 +757,7 @@ const Analyzer = (() => {
           "確認不定詞（infinitif）與時態",
           "【不規則】勿套用第一組／通則詞尾，需另立此動詞專屬規則",
           "六人稱格子請填完整形（suis、peux…），不要只填 -ais",
-          "規則名寫具體動詞：如 未完成過去（pouvoir imparfait）",
+          "規則名寫具體動詞：如 pouvoir 未完成過去（imparfait）",
           "對照 Bescherelle／變位表核對其餘格",
         ]
       : [
@@ -711,6 +804,378 @@ const Analyzer = (() => {
     return null;
   }
 
+  function isGroup3Infinitive(infinitive) {
+    const inf = String(infinitive || "")
+      .trim()
+      .toLowerCase()
+      .normalize("NFC");
+    if (!inf || inf === "?") return false;
+    if (isIrregularInfinitive(inf) || inf === "aller") return true;
+    const g = verbGroupForLemma(inf);
+    return g?.code === "3";
+  }
+
+  const TITLE_TENSE_FR = {
+    現在時: "présent",
+    未完成過去: "imparfait",
+    簡單未來式: "futur simple",
+    簡單未來: "futur simple",
+    過去分詞: "participe passé",
+    不定式: "infinitif",
+    複合過去: "passé composé",
+    命令: "impératif",
+    條件式: "conditionnel",
+    虛擬式: "subjonctif",
+  };
+
+  function tenseLabelFromTitle(text) {
+    const s = String(text || "").trim();
+    const left = s.replace(/[（(].*$/, "").trim();
+    const stripped = left.replace(/^[a-zàâäéèêëïîôùûüçœæ'’\s_-]+\s+/i, "").trim() || left;
+    if (TITLE_TENSE_FR[stripped]) return stripped;
+    if (/未完成/.test(s)) return "未完成過去";
+    if (/過去分詞|participe/.test(s)) return "過去分詞";
+    if (/複合過去|passé compos/.test(s)) return "複合過去";
+    if (/簡單未來|futur/.test(s)) return "簡單未來式";
+    if (/不定式|infinitif/.test(s)) return "不定式";
+    if (/命令|impératif/.test(s)) return "命令";
+    if (/條件|conditionnel/.test(s)) return "條件式";
+    if (/虛擬|subjonctif/.test(s)) return "虛擬式";
+    if (/現在|présent/.test(s)) return "現在時";
+    return "現在時";
+  }
+
+  function stripVerbLemma(s) {
+    return String(s || "")
+      .trim()
+      .toLowerCase()
+      .normalize("NFC")
+      .replace(/_/g, " ")
+      .replace(/^se\s+/i, "")
+      .replace(/^s['’]/i, "")
+      .trim();
+  }
+
+  function infinitiveShaped(inf) {
+    return /(?:er|ir|re|oir)$/i.test(String(inf || ""));
+  }
+
+  /**
+   * API 常把第一／二組標成 3。不定詞能判定時以本地為準：
+   * 規則 -er → 1，規則 -ir → 2，已知不規則與 -re／-oir → 3。
+   */
+  function group3StemCollision(guessed) {
+    const stem = String(guessed || "").replace(/(?:er|ir|re|oir)$/i, "");
+    if (stem.length < 3) return false;
+    const ir = stem + "ir";
+    if (ir !== guessed && verbGroupForLemma(ir)?.code === "3") return true;
+    for (const inf of IRREGULAR_INFINITIVES) {
+      if (inf !== guessed && inf.startsWith(stem) && verbGroupForLemma(inf)?.code === "3") return true;
+    }
+    return false;
+  }
+
+  function groupFromAnalyzedForm(form) {
+    const guessed = stripVerbLemma(analyze(form)?.primary?.infinitive);
+    if (!guessed || guessed === "?" || !infinitiveShaped(guessed)) return "";
+    const info = verbGroupForLemma(guessed);
+    if (!info?.code) return "";
+    if ((info.code === "1" || info.code === "2") && group3StemCollision(guessed)) return "";
+    return info.code;
+  }
+
+  function reconcileVerbGroup(apiCode, lemma, surface) {
+    const api = String(apiCode || "").trim();
+    const lem = stripVerbLemma(lemma);
+    const surf = stripVerbLemma(surface);
+    if (infinitiveShaped(lem)) {
+      const info = verbGroupForLemma(lem);
+      if (info?.code === "1" || info?.code === "2" || info?.code === "3") return info.code;
+    }
+    for (const form of [lem, surf]) {
+      if (!form || form === lem && infinitiveShaped(lem)) continue;
+      const code = groupFromAnalyzedForm(form);
+      if (code === "1" || code === "2" || code === "3") return code;
+    }
+    return api === "1" || api === "2" || api === "3" ? api : "";
+  }
+
+  /** 第一／二組規則動詞：共用詞尾卡，不為每個動詞另立 */
+  function usesSharedGroupPattern(infinitive) {
+    const inf = String(infinitive || "")
+      .trim()
+      .toLowerCase()
+      .normalize("NFC");
+    if (!inf || inf === "?" || inf === "aller") return false;
+    if (isIrregularInfinitive(inf) || isGroup3Infinitive(inf)) return false;
+    const g = verbGroupForLemma(inf);
+    return g?.code === "1" || g?.code === "2";
+  }
+
+  function groupPatternSpec(infinitive, tenseZhOrTitle) {
+    const inf = String(infinitive || "")
+      .trim()
+      .toLowerCase()
+      .normalize("NFC");
+    const g = verbGroupForLemma(inf);
+    const ending = g?.code === "2" ? "ir" : "er";
+    const zh = tenseLabelFromTitle(tenseZhOrTitle);
+    if (zh === "未完成過去") {
+      return {
+        name: `未完成過去（-${ending} imparfait）`,
+        key: `verb:${ending}:imparfait`,
+        category: "時態",
+      };
+    }
+    if (zh === "過去分詞" && ending === "er") {
+      return { name: "過去分詞（-é）", key: "pp:e", category: "時態" };
+    }
+    if (zh === "簡單未來式" || zh === "簡單未來") {
+      return { name: "簡單未來式（futur simple）", key: "verb:futur", category: "時態" };
+    }
+    return {
+      name: `現在時（-${ending} présent）`,
+      key: `verb:${ending}:present`,
+      category: "時態",
+    };
+  }
+
+  /**
+   * 不規則／第三組：不定詞＋時態（souvenir 現在時（présent））。
+   * 第一／二組規則動詞用詞尾通則（現在時（-er présent））。
+   */
+  function specificVerbRuleTitle(infinitive, tenseZhOrTitle) {
+    const inf = String(infinitive || "")
+      .trim()
+      .toLowerCase()
+      .normalize("NFC")
+      .replace(/_/g, " ")
+      .replace(/^se\s+/i, "")
+      .replace(/^s['’]/i, "")
+      .trim();
+    if (!inf) return "";
+    const raw = String(tenseZhOrTitle || "").trim();
+    let zh = raw.replace(/[（(].*$/, "").trim() || "現在時";
+    zh = zh.replace(new RegExp(`^${inf.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\s+`, "i"), "").trim() || zh;
+    const fr = TITLE_TENSE_FR[zh] || "";
+    const frLabel = fr || zh;
+    return `${inf} ${zh}（${frLabel}）`;
+  }
+
+  function isGenericGroupTitle(title) {
+    const s = String(title || "");
+    if (
+      /（\s*-?\s*er\s*(présent|imparfait)?\s*）|（\s*-?\s*ir\s*(présent|imparfait)?\s*）|（\s*-é\s*）|第一組|第二組|-er présent|-ir présent|-er imparfait|-ir imparfait/.test(
+        s
+      )
+    ) {
+      return true;
+    }
+    const m = s.match(/^(.+?)[（(]\s*(.+?)\s*[）)]\s*$/);
+    if (!m) return false;
+    const zh = m[1].trim();
+    const fr = m[2].trim();
+    return (
+      /^(現在時|未完成過去|簡單未來式|簡單未來|過去分詞)$/.test(zh) &&
+      /^(présent|imparfait|futur simple|-é)$/i.test(fr)
+    );
+  }
+
+  /**
+   * 規則動詞維持／改回第一／二組通則名；不規則才改成不定詞＋時態。
+   */
+  function rewriteVerbTitle(name, extra = {}) {
+    const s = String(name || "").trim();
+    let inf = String(extra.infinitive || extra.lemma || "")
+      .trim()
+      .toLowerCase()
+      .normalize("NFC")
+      .replace(/_/g, " ")
+      .replace(/^se\s+/i, "")
+      .replace(/^s['’]/i, "")
+      .trim();
+    const span = String(extra.span || extra.form || "").trim();
+    if (!inf && span) {
+      const hit = lookupIrregular(span);
+      if (hit?.infinitive) inf = hit.infinitive;
+    }
+    if (!inf && span) {
+      const a = analyze(span);
+      const guess = a?.primary?.infinitive;
+      if (guess && guess !== "?" && guess.length >= 2) inf = guess;
+    }
+    if (
+      inf &&
+      inf !== "?" &&
+      !/^(er|ir|re)$/i.test(inf) &&
+      inf.length >= 2 &&
+      /(?:er|ir|re|oir)$/i.test(inf)
+    ) {
+      const tense = tenseLabelFromTitle(s) || extra.tense || "現在時";
+      if (usesSharedGroupPattern(inf)) return groupPatternSpec(inf, tense).name;
+      if (isGroup3Infinitive(inf) || isIrregularInfinitive(inf)) {
+        return specificVerbRuleTitle(inf, tense);
+      }
+    }
+    return rewriteSpecificVerbTitle(s);
+  }
+
+  /** 舊式「現在時（souvenir présent）」→「souvenir 現在時（présent）」 */
+  function extractInfinitiveWord(text) {
+    const words = String(text || "")
+      .toLowerCase()
+      .normalize("NFC")
+      .split(/[^a-zàâäéèêëïîôùûüçœæ'-]+/i)
+      .map((w) => w.replace(/^s['’]/, "").replace(/^se$/, ""))
+      .filter((w) => w.length >= 4 && infinitiveShaped(w));
+    words.sort((a, b) => b.length - a.length);
+    return words[0] || "";
+  }
+
+  function rewriteSpecificVerbTitle(name) {
+    const s = String(name || "").trim();
+    if (!s || isGenericGroupTitle(s)) return s;
+    const embedded = extractInfinitiveWord(s);
+    if (embedded && usesSharedGroupPattern(embedded)) return groupPatternSpec(embedded, s).name;
+    const m = s.match(/^(.+?)[（(]\s*(.+?)\s*[）)]\s*$/);
+    if (!m) return s;
+    const left = m[1].trim();
+    const right = m[2]
+      .trim()
+      .replace(/_/g, " ")
+      .replace(/^se\s+/i, "")
+      .replace(/^s['’]/i, "");
+    if (/^-?(er|ir|é)\b/i.test(right)) return s;
+
+    const leftWords = left.split(/\s+/).filter(Boolean);
+    if (leftWords.length >= 2) {
+      const maybeInf = leftWords[0];
+      const maybeZh = leftWords.slice(1).join(" ");
+      if (TITLE_TENSE_FR[maybeZh] || maybeZh === "過去分詞" || maybeZh === "不定式") {
+        if (usesSharedGroupPattern(maybeInf)) return groupPatternSpec(maybeInf, maybeZh).name;
+        if (isGroup3Infinitive(maybeInf) || isIrregularInfinitive(maybeInf)) {
+          return specificVerbRuleTitle(maybeInf, maybeZh);
+        }
+      }
+    }
+
+    if (!TITLE_TENSE_FR[left] && left !== "過去分詞" && left !== "不定式") return s;
+    let inf = extractIrregularInfinitive(s);
+    if (!inf) {
+      const hit = String(right)
+        .split(/\s+/)
+        .map((w) => w.toLowerCase().normalize("NFC"))
+        .find((w) => w.length >= 3 && /(?:er|ir|re|oir)$/i.test(w) && !isGenericGroupTitle(w));
+      inf = hit || "";
+    }
+    if (!inf) return s;
+    if (usesSharedGroupPattern(inf)) return groupPatternSpec(inf, left).name;
+    if (!isGroup3Infinitive(inf) && !isIrregularInfinitive(inf) && !/(?:oir|re)$/i.test(inf)) {
+      return s;
+    }
+    return specificVerbRuleTitle(inf, left);
+  }
+
+  function infinitiveForGrammarItem(it, vocab, tokens) {
+    const span = String(it?.span || "").trim();
+    const start = Number(it?.start);
+    const end = Number(it?.end);
+    for (const w of Array.isArray(vocab) ? vocab : []) {
+      const lemma = String(w?.lemma || w?.l || "").trim();
+      if (!lemma) continue;
+      const pos = String(w?.pos || w?.p || "");
+      const vg = String(w?.verbGroup || w?.vg || "");
+      const isVerb = /動詞|verb/i.test(pos) || /^[123]$/.test(vg);
+      if (!isVerb && pos && !/其他|other/i.test(pos)) continue;
+      const surf = String(w?.surface || w?.s || "").trim();
+      if (span && (surf === span || lemma === span)) return lemma;
+      const ws = Number(w?.start ?? w?.a);
+      const we = Number(w?.end ?? w?.b);
+      if (Number.isFinite(start) && Number.isFinite(ws) && ws === start) return lemma;
+      if (
+        Number.isFinite(start) &&
+        Number.isFinite(end) &&
+        Number.isFinite(ws) &&
+        Number.isFinite(we) &&
+        ws >= start &&
+        we <= end
+      ) {
+        return lemma;
+      }
+    }
+    if (span) {
+      const hit = lookupIrregular(span);
+      if (hit?.infinitive) return hit.infinitive;
+    }
+    for (const t of Array.isArray(tokens) ? tokens : []) {
+      if (t?.pos && t.pos !== "動詞") continue;
+      if (span && t.form === span && t.lemma) return t.lemma;
+      if (Number.isFinite(start) && t.start === start && t.lemma) return t.lemma;
+    }
+    return "";
+  }
+
+  function rewriteGenericGroup3Title(title, infinitive) {
+    const inf = String(infinitive || "")
+      .trim()
+      .toLowerCase()
+      .normalize("NFC");
+    const t = String(title || "").trim();
+    if (!inf || !isGroup3Infinitive(inf)) return t;
+    if (mentionsInfinitive(t, inf)) return t;
+    const other = extractIrregularInfinitive(t);
+    if (other && other !== inf && !isGenericGroupTitle(t)) return t;
+    if (
+      isGenericGroupTitle(t) ||
+      /現在時|未完成|過去分詞|未來|不定式|變位|présent|imparfait/.test(t)
+    ) {
+      return specificVerbRuleTitle(inf, t);
+    }
+    return t;
+  }
+
+  /** 不規則改成不定詞＋時態；規則動詞改回第一／二組通則 */
+  function rewriteInventoryVerbTitles(inventory) {
+    const inv = inventory && typeof inventory === "object" ? inventory : { items: [] };
+    const items = Array.isArray(inv.items) ? inv.items : [];
+    const vocab = Array.isArray(inv.vocab) ? inv.vocab : [];
+    const tokens = Array.isArray(inv.tokens) ? inv.tokens : [];
+    for (const it of items) {
+      if (!it || it.manualRuleId) continue;
+      const inf =
+        infinitiveForGrammarItem(it, vocab, tokens) ||
+        String(it.grammarKey || "").replace(/^verb:([^:]+):.*/, "$1");
+      const cat = String(it.category || "");
+      const looksVerb =
+        /變位|時態/.test(cat) ||
+        isGenericGroupTitle(it.name) ||
+        /現在時|未完成|過去分詞|未來|不定式|變位|présent|imparfait/.test(it.name || "") ||
+        /^verb:/.test(String(it.grammarKey || ""));
+      if (!looksVerb) continue;
+      const next = rewriteVerbTitle(it.name, { infinitive: inf, span: it.span });
+      if (next && next !== it.name) {
+        it.name = next;
+        const m = next.match(/^(.+?)[（(]\s*(.+?)\s*[）)]\s*$/);
+        if (m) {
+          it.nameZh = m[1].trim();
+          it.nameFr = m[2].trim();
+          it.nameKo = it.nameFr;
+        }
+        if (inf && usesSharedGroupPattern(inf)) {
+          it.grammarKey = groupPatternSpec(inf, next).key;
+        } else if (inf && inf !== "er" && String(it.grammarKey || "").startsWith("verb:er:")) {
+          const tense = String(it.grammarKey).split(":")[2] || "present";
+          it.grammarKey = `verb:${inf}:${tense}`;
+        }
+      }
+    }
+    return inv;
+  }
+
+  function rewriteInventoryGroup3Titles(inventory) {
+    return rewriteInventoryVerbTitles(inventory);
+  }
+
   /**
    * 從分析結果預填規則草稿（規則名 + 說明 + 六格）
    * 不規則動詞：標題帶動詞名、六格優先完整形、禁止只當通則詞尾
@@ -720,6 +1185,8 @@ const Analyzer = (() => {
     const inf = p.infinitive && p.infinitive !== "?" ? p.infinitive : "";
     const tense = p.tense && p.tense !== "未知" ? p.tense : "";
     const isIrreg = !!(analysis.irregular || p.irregular || (inf && isIrregularInfinitive(inf)));
+    const isG3 = !!(inf && isGroup3Infinitive(inf));
+    const specific = isIrreg || isG3;
 
     const endings = { je: "", tu: "", il: "", nous: "", vous: "", ils: "" };
 
@@ -751,13 +1218,13 @@ const Analyzer = (() => {
       endings.je = form;
     }
 
-    // 標題：不規則必帶動詞名
+    // 標題：第三組／不規則必帶該動詞法語不定詞
     let title;
     const zhT = tenseZh(tense);
-    if (isIrreg && inf && tense) {
-      title = `${inf} ${zhT || tense}（${inf} ${tense}）`;
-    } else if (inf && tense) {
-      title = `${zhT || tense}（${inf}）`;
+    if (specific && inf && tense) {
+      title = specificVerbRuleTitle(inf, zhT || tense);
+    } else if (inf && tense && usesSharedGroupPattern(inf)) {
+      title = groupPatternSpec(inf, zhT || tense).name;
     } else if (inf) {
       title = `${inf}（${form}）`;
     } else {
@@ -789,12 +1256,25 @@ const Analyzer = (() => {
     groupLabel,
     guessGroup,
     verbGroupForLemma,
+    reconcileVerbGroup,
     lookupIrregular,
     isIrregularForm,
     isIrregularInfinitive,
     extractIrregularInfinitive,
+    mentionsInfinitive,
     getParadigm,
     tenseZh,
+    isGroup3Infinitive,
+    specificVerbRuleTitle,
+    usesSharedGroupPattern,
+    groupPatternSpec,
+    rewriteSpecificVerbTitle,
+    rewriteVerbTitle,
+    tenseLabelFromTitle,
+    isGenericGroupTitle,
+    rewriteInventoryVerbTitles,
+    rewriteGenericGroup3Title,
+    rewriteInventoryGroup3Titles,
     IRREGULAR_INFINITIVES: [...IRREGULAR_INFINITIVES],
   };
 })();

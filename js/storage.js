@@ -213,8 +213,13 @@ const Storage = (() => {
   }
 
   function saveRules(rules) {
-    localStorage.setItem(RULES_KEY, JSON.stringify(rules));
-    setMeta({ lastSaved: new Date().toISOString() });
+    try {
+      localStorage.setItem(RULES_KEY, JSON.stringify(rules));
+      setMeta({ lastSaved: new Date().toISOString() });
+    } catch (err) {
+      const q = quotaError(err);
+      throw q || new Error(err?.message || "規則寫入本機失敗");
+    }
   }
 
   function loadTodos() {
@@ -248,12 +253,15 @@ const Storage = (() => {
 
   const TITLE_RENAMES = {
     "第一組動詞未完成過去（-er imparfait）": "未完成過去（-er imparfait）",
-    "pouvoir 未完成過去（pouvoir imparfait）": "未完成過去（pouvoir imparfait）",
     "第一組動詞現在時（-er présent）": "現在時（-er présent）",
-    "être 現在時（être présent）": "現在時（être）",
-    "avoir 現在時（avoir présent）": "現在時（avoir）",
     "第一組過去分詞（-é）": "過去分詞（-é）",
     "第一組動詞過去分詞（-é）": "過去分詞（-é）",
+    "未完成過去（pouvoir imparfait）": "pouvoir 未完成過去（imparfait）",
+    "pouvoir 未完成過去（pouvoir imparfait）": "pouvoir 未完成過去（imparfait）",
+    "現在時（être）": "être 現在時（présent）",
+    "être 現在時（être présent）": "être 現在時（présent）",
+    "現在時（avoir）": "avoir 現在時（présent）",
+    "avoir 現在時（avoir présent）": "avoir 現在時（présent）",
   };
 
   function migrateRuleTitles(rules) {
@@ -262,7 +270,10 @@ const Storage = (() => {
     const next = rules.map((r) => {
       if (!r) return r;
       const t = String(r.title || "").trim();
-      const mapped = TITLE_RENAMES[t];
+      let mapped = TITLE_RENAMES[t];
+      if (!mapped && typeof Analyzer !== "undefined" && Analyzer.rewriteSpecificVerbTitle) {
+        mapped = Analyzer.rewriteSpecificVerbTitle(t);
+      }
       if (!mapped || mapped === t) return r;
       changed = true;
       return { ...r, title: mapped };
@@ -401,6 +412,52 @@ const Storage = (() => {
     localStorage.removeItem(RULES_KEY);
     localStorage.removeItem(TODOS_KEY);
     setMeta({ resetAt: new Date().toISOString() });
+  }
+
+  /**
+   * 刪除筆記本內容：規則改回種子、待辦、專案（含 IndexedDB）、單字本、查詢歷史。
+   * 保留 API 設定。單字本的來源（歷史、專案句子）一併清掉，避免下次開啟再被收回來。
+   */
+  async function clearAllNotebookData() {
+    adoptProjectsCache(emptyProjectsStore());
+    projectsDirty = true;
+    try {
+      localStorage.removeItem(ACTIVE_PROJECT_KEY);
+    } catch {
+      /* ignore */
+    }
+
+    let idbCleared = false;
+    try {
+      if (idbAvailable()) {
+        if (!projectsDb) projectsDb = await openProjectsDb();
+        projectsBackend = "idb";
+        await flushProjects();
+        await idbPut(projectsDb, IDB_PROJECTS_KEY, emptyProjectsStore());
+        projectsDirty = false;
+        idbCleared = true;
+        try {
+          writeProjectsLocalStorageStub();
+        } catch {
+          /* ignore */
+        }
+      }
+    } catch (err) {
+      console.warn("[clear all] IndexedDB", err);
+    }
+    if (!idbCleared) {
+      writeProjectsLocalStorageFull(emptyProjectsStore());
+      projectsBackend = "localStorage";
+      projectsDirty = false;
+    }
+
+    clearHistory();
+    try {
+      localStorage.removeItem(VOCAB_BANK_KEY);
+    } catch {
+      /* ignore */
+    }
+    resetToSeed();
   }
 
   /**
@@ -1370,7 +1427,7 @@ const Storage = (() => {
       .replace(/\s+/g, " ");
   }
 
-  /* 大項 collections 只做容器；句子只存在分項 project */
+  /* 大項 collections 只做容器；句子只存在分項 project。專案列表會把全部分項直接鋪開。 */
   const UNGROUPED_COLLECTION_ID = "";
 
   function normalizeCollection(raw) {
@@ -2204,6 +2261,280 @@ const Storage = (() => {
     };
   }
 
+  /**
+   * 雲端資料夾：記住使用者選的 iCloud／Google 雲端硬碟資料夾，讀寫同一份 lugus-backup.json。
+   * FileSystemHandle 只能放 IndexedDB。
+   */
+  const CLOUD_IDB_NAME = "fvgn_cloud_v1";
+  const CLOUD_IDB_VERSION = 1;
+  const CLOUD_STORE = "kv";
+  const CLOUD_HANDLE_KEY = "dir";
+  const CLOUD_META_KEY = "fvgn_cloud_meta_v1";
+  const CLOUD_BACKUP_FILE = "lugus-backup.json";
+  const CLOUD_BACKUP_TMP = "lugus-backup.json.tmp";
+  let cloudDbPromise = null;
+  /** undefined＝尚未讀過；null＝沒有連結 */
+  let cloudHandleCache;
+
+  function cloudFolderSupported() {
+    return typeof window !== "undefined" && typeof window.showDirectoryPicker === "function";
+  }
+
+  function openCloudDb() {
+    if (!idbAvailable()) return Promise.reject(new Error("這個瀏覽器沒有 IndexedDB，不能記住資料夾"));
+    if (!cloudDbPromise) {
+      cloudDbPromise = new Promise((resolve, reject) => {
+        const req = indexedDB.open(CLOUD_IDB_NAME, CLOUD_IDB_VERSION);
+        req.onupgradeneeded = () => {
+          const db = req.result;
+          if (!db.objectStoreNames.contains(CLOUD_STORE)) db.createObjectStore(CLOUD_STORE);
+        };
+        req.onsuccess = () => resolve(req.result);
+        req.onerror = () => {
+          cloudDbPromise = null;
+          reject(req.error || new Error("無法記住雲端資料夾"));
+        };
+      });
+    }
+    return cloudDbPromise;
+  }
+
+  function cloudIdbGet(db, key) {
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(CLOUD_STORE, "readonly");
+      const req = tx.objectStore(CLOUD_STORE).get(key);
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => reject(req.error);
+    });
+  }
+
+  function cloudIdbPut(db, key, value) {
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(CLOUD_STORE, "readwrite");
+      tx.oncomplete = () => resolve();
+      tx.onabort = () => reject(tx.error || new Error("雲端資料夾寫入中止"));
+      tx.onerror = () => reject(tx.error || new Error("雲端資料夾寫入失敗"));
+      tx.objectStore(CLOUD_STORE).put(value, key);
+    });
+  }
+
+  function cloudIdbDelete(db, key) {
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(CLOUD_STORE, "readwrite");
+      tx.oncomplete = () => resolve();
+      tx.onabort = () => reject(tx.error || new Error("雲端資料夾刪除中止"));
+      tx.onerror = () => reject(tx.error || new Error("雲端資料夾刪除失敗"));
+      tx.objectStore(CLOUD_STORE).delete(key);
+    });
+  }
+
+  function loadCloudMeta() {
+    try {
+      const raw = localStorage.getItem(CLOUD_META_KEY);
+      const parsed = raw ? JSON.parse(raw) : null;
+      return parsed && typeof parsed === "object" ? parsed : {};
+    } catch {
+      return {};
+    }
+  }
+
+  function saveCloudMeta(patch) {
+    const next = { ...loadCloudMeta(), ...patch };
+    localStorage.setItem(CLOUD_META_KEY, JSON.stringify(next));
+    return next;
+  }
+
+  function rememberCloudHandle(handle) {
+    cloudHandleCache = handle && typeof handle.getFileHandle === "function" ? handle : null;
+    return cloudHandleCache;
+  }
+
+  async function loadCloudHandle() {
+    if (cloudHandleCache !== undefined) return cloudHandleCache;
+    const db = await openCloudDb();
+    const handle = await cloudIdbGet(db, CLOUD_HANDLE_KEY);
+    return rememberCloudHandle(handle);
+  }
+
+  async function ensureCloudPermission(handle, mode) {
+    const opts = { mode };
+    try {
+      if (typeof handle.queryPermission === "function") {
+        if ((await handle.queryPermission(opts)) === "granted") return true;
+      }
+      if (typeof handle.requestPermission === "function") {
+        return (await handle.requestPermission(opts)) === "granted";
+      }
+    } catch (err) {
+      if (err && (err.name === "NotAllowedError" || err.name === "SecurityError" || err.name === "AbortError")) {
+        return false;
+      }
+      throw err;
+    }
+    return true;
+  }
+
+  async function cloudFolderStatus() {
+    const meta = loadCloudMeta();
+    const supported = cloudFolderSupported();
+    let handle = null;
+    let permission = "missing";
+    try {
+      handle = await loadCloudHandle();
+    } catch {
+      handle = null;
+    }
+    if (handle) {
+      try {
+        if (typeof handle.queryPermission === "function") {
+          permission = await handle.queryPermission({ mode: "readwrite" });
+        } else {
+          permission = "granted";
+        }
+      } catch {
+        permission = "prompt";
+      }
+    }
+    return {
+      supported,
+      linked: Boolean(handle),
+      name: (handle && handle.name) || meta.name || "",
+      permission,
+      syncedAt: meta.syncedAt || "",
+      loadedAt: meta.loadedAt || "",
+      fileName: CLOUD_BACKUP_FILE,
+    };
+  }
+
+  async function ensureCloudFolderPermission(mode = "readwrite") {
+    const handle = cloudHandleCache !== undefined ? cloudHandleCache : await loadCloudHandle();
+    if (!handle) return false;
+    return ensureCloudPermission(handle, mode);
+  }
+
+  async function pickCloudFolder() {
+    if (!cloudFolderSupported()) {
+      throw new Error("此瀏覽器不能記住資料夾。請用 Chrome 或 Edge 開啟 http://127.0.0.1:8080/ 。");
+    }
+    let handle;
+    try {
+      try {
+        handle = await window.showDirectoryPicker({
+          id: "lugus-cloud-backup",
+          mode: "readwrite",
+        });
+      } catch (err) {
+        if (err && err.name === "TypeError") {
+          handle = await window.showDirectoryPicker({ mode: "readwrite" });
+        } else {
+          throw err;
+        }
+      }
+    } catch (err) {
+      if (err && err.name === "AbortError") {
+        const cancel = new Error("已取消");
+        cancel.name = "AbortError";
+        throw cancel;
+      }
+      throw err;
+    }
+    const db = await openCloudDb();
+    await cloudIdbPut(db, CLOUD_HANDLE_KEY, handle);
+    rememberCloudHandle(handle);
+    saveCloudMeta({
+      name: handle.name || "",
+      linkedAt: new Date().toISOString(),
+      syncedAt: "",
+      loadedAt: "",
+    });
+    return { name: handle.name || "" };
+  }
+
+  async function unlinkCloudFolder() {
+    cloudHandleCache = null;
+    try {
+      const db = await openCloudDb();
+      await cloudIdbDelete(db, CLOUD_HANDLE_KEY);
+    } catch {
+      /* 權限紀錄清不掉時，仍清本機狀態 */
+    }
+    try {
+      localStorage.removeItem(CLOUD_META_KEY);
+    } catch {
+      /* ignore */
+    }
+  }
+
+  async function writeTextToDir(dirHandle, name, text) {
+    const fileHandle = await dirHandle.getFileHandle(name, { create: true });
+    const writable = await fileHandle.createWritable();
+    try {
+      await writable.write(text);
+      await writable.close();
+    } catch (err) {
+      try {
+        await writable.abort();
+      } catch {
+        /* ignore */
+      }
+      throw err;
+    }
+    return fileHandle;
+  }
+
+  async function writeCloudBackup(json) {
+    const handle = await loadCloudHandle();
+    if (!handle) throw new Error("尚未連結資料夾");
+    const ok = await ensureCloudPermission(handle, "readwrite");
+    if (!ok) throw new Error("沒有寫入這個資料夾的權限。請再按一次「連結資料夾」。");
+    const text = typeof json === "string" ? json : JSON.stringify(json);
+    const tmp = await writeTextToDir(handle, CLOUD_BACKUP_TMP, text);
+    if (typeof tmp.move === "function") {
+      try {
+        await tmp.move(CLOUD_BACKUP_FILE);
+      } catch (err) {
+        if (!err || err.name !== "InvalidModificationError") throw err;
+        try {
+          await handle.removeEntry(CLOUD_BACKUP_FILE);
+        } catch {
+          /* 目標檔可能不存在 */
+        }
+        await tmp.move(CLOUD_BACKUP_FILE);
+      }
+    } else {
+      await writeTextToDir(handle, CLOUD_BACKUP_FILE, text);
+      try {
+        await handle.removeEntry(CLOUD_BACKUP_TMP);
+      } catch {
+        /* ignore */
+      }
+    }
+    const syncedAt = new Date().toISOString();
+    saveCloudMeta({ name: handle.name || "", syncedAt });
+    return { name: handle.name || "", fileName: CLOUD_BACKUP_FILE, syncedAt };
+  }
+
+  async function readCloudBackup() {
+    const handle = await loadCloudHandle();
+    if (!handle) throw new Error("尚未連結資料夾");
+    const ok = await ensureCloudPermission(handle, "read");
+    if (!ok) throw new Error("沒有讀取這個資料夾的權限。請再按一次「連結資料夾」。");
+    let fileHandle;
+    try {
+      fileHandle = await handle.getFileHandle(CLOUD_BACKUP_FILE);
+    } catch (err) {
+      if (err && err.name === "NotFoundError") {
+        throw new Error(`「${handle.name || "資料夾"}」裡還沒有 ${CLOUD_BACKUP_FILE}。請先在放著這份筆記本的電腦按「同步到雲端」。`);
+      }
+      throw err;
+    }
+    const file = await fileHandle.getFile();
+    const text = await file.text();
+    const loadedAt = new Date().toISOString();
+    saveCloudMeta({ name: handle.name || "", loadedAt });
+    return { text, name: handle.name || "", fileName: CLOUD_BACKUP_FILE, loadedAt };
+  }
+
   return {
     loadRules,
     saveRules,
@@ -2217,6 +2548,7 @@ const Storage = (() => {
     importRulesJSON,
     importDataJSON,
     resetToSeed,
+    clearAllNotebookData,
     loadSettings,
     saveSettings,
     clearApiKey,
@@ -2288,5 +2620,13 @@ const Storage = (() => {
     measureLocalStorageUsage,
     formatStorageBytes,
     normalizeQueryKey,
+    CLOUD_BACKUP_FILE,
+    cloudFolderSupported,
+    cloudFolderStatus,
+    ensureCloudFolderPermission,
+    pickCloudFolder,
+    unlinkCloudFolder,
+    writeCloudBackup,
+    readCloudBackup,
   };
 })();
