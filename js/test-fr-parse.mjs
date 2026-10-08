@@ -245,7 +245,7 @@ function tokensOf(q) {
   if (souvient?.grammarKey !== "verb:souvenir:present") {
     fail(`souvient key ${souvient?.grammarKey}`);
   }
-  if (souvient?.lexName !== "souvenir 現在時（présent）") {
+  if (souvient?.lexName !== "記得現在時（souvenir présent）") {
     fail(`souvient name ${souvient?.lexName}`);
   }
   const cands = FrParse.deterministicFunctions(q, tokens);

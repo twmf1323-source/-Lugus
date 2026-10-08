@@ -178,7 +178,7 @@ Rules.setAll([prendre, ppEr]);
 
 {
   const cleaned = FrParse.cleanGrammarName("現在時（se_souvenir présent）");
-  if (cleaned !== "souvenir 現在時（présent）") fail(`cleanGrammarName ${cleaned}`);
+  if (cleaned !== "記得現在時（souvenir présent）") fail(`cleanGrammarName ${cleaned}`);
   const regular = FrParse.cleanGrammarName("durer 現在時（présent）");
   if (regular !== "現在時（-er présent）") fail(`regular verb should share -er card, got ${regular}`);
   ok("se_souvenir name is cleaned; regular durer shares -er présent");
@@ -186,8 +186,8 @@ Rules.setAll([prendre, ppEr]);
 
 {
   const fromOld = FrParse.cleanGrammarName("現在時（se souvenir）");
-  if (fromOld !== "souvenir 現在時（présent）") fail(`現在時（se souvenir） → ${fromOld}`);
-  ok("現在時（se souvenir） rewrites to souvenir 現在時（présent）");
+  if (fromOld !== "記得現在時（souvenir présent）") fail(`現在時（se souvenir） → ${fromOld}`);
+  ok("現在時（se souvenir） rewrites to 記得現在時（souvenir présent）");
 }
 
 {

@@ -933,6 +933,31 @@ const RulesService = (() => {
     return pp ? pp[1] : "";
   }
 
+  /** il、vit 這種切詞殘段不是不定詞。拿它們改寫 verb:er: 會讓已建好的通則卡對不上。 */
+  function plausibleVerbInfinitive(inf) {
+    const s = String(inf || "")
+      .trim()
+      .toLowerCase()
+      .normalize("NFC");
+    if (!s || s === "er" || s === "ir") return false;
+    if (typeof Analyzer !== "undefined" && Analyzer.isIrregularInfinitive && Analyzer.isIrregularInfinitive(s)) {
+      return true;
+    }
+    return s.length >= 4 && /(?:er|ir|re|oir)$/i.test(s);
+  }
+
+  /** 同名卡建了不止一張時掛使用者自己寫的那張，種子只在沒有自建卡時才用。 */
+  function pickSameTitleRule(list) {
+    const rows = (list || []).filter(Boolean);
+    if (!rows.length) return null;
+    const user = rows.filter((r) => !String(r.id || "").startsWith("seed-"));
+    const pool = (user.length ? user : rows).slice();
+    pool.sort((a, b) =>
+      String(b.updated_at || b.created_at || "").localeCompare(String(a.updated_at || a.created_at || ""))
+    );
+    return pool[0];
+  }
+
   function grammarFamilyFromKey(key) {
     const k = String(key || "").toLowerCase();
     if (/imparfait/.test(k)) return "imparfait";
@@ -996,8 +1021,7 @@ const RulesService = (() => {
    */
   function uniqueSharedEndingRule(pool, fam, ctx) {
     if (!fam || !pool) return null;
-    const spanTok = firstSpanToken(ctx?.span);
-    if (spanBlocksSharedEndingRule(spanTok)) return null;
+    if (spanBlocksSharedEndingRule(ctx?.span)) return null;
     const hits = [];
     const seen = new Set();
     for (const r of pool) {
@@ -1017,7 +1041,10 @@ const RulesService = (() => {
       seen.add(r.id);
       hits.push(r);
     }
-    return hits.length === 1 ? hits[0] : null;
+    if (hits.length === 1) return hits[0];
+    const titles = new Set(hits.map((r) => titleNorm(r.title)));
+    if (hits.length > 1 && titles.size === 1) return pickSameTitleRule(hits);
+    return null;
   }
 
   /** 標題像第一／二組通則時才走通則卡，避免「現在時（dire présent）」誤掛。 */
@@ -1047,25 +1074,33 @@ const RulesService = (() => {
     if (seedId) {
       const seed = pool.find((r) => r.id === seedId) || getById(seedId);
       if (seed && !isSupplementaryUsage(seed)) {
-        const spanTok = firstSpanToken(ctx.span);
         if (
           (/^verb:(er|ir):/.test(k) || k === "pp:e") &&
-          spanBlocksSharedEndingRule(spanTok)
+          spanBlocksSharedEndingRule(ctx.span)
         ) {
           return { done: true, result: { owned: false, rule: null, score: 0, reason: "function-span" } };
         }
         if (verbIdentityConflict(seed, ctx.queryInf, qFam, spanIrreg)) {
           return { done: true, result: { owned: false, rule: null, score: 0, reason: "key-seed-conflict" } };
         }
-        return { done: true, result: { owned: true, rule: seed, score: 96, strict: true } };
+        const sameTitle = pool.filter(
+          (r) =>
+            titleNorm(r.title) === titleNorm(seed.title) &&
+            !verbIdentityConflict(r, ctx.queryInf, qFam, spanIrreg)
+        );
+        return {
+          done: true,
+          result: { owned: true, rule: pickSameTitleRule(sameTitle.length ? sameTitle : [seed]), score: 96, strict: true },
+        };
       }
     }
 
     const wantTitle = lookupKindTitle(k);
     if (wantTitle) {
       const byTitle = pool.filter((r) => titleNorm(r.title) === titleNorm(wantTitle));
-      if (byTitle.length === 1 && !verbIdentityConflict(byTitle[0], ctx.queryInf, qFam, spanIrreg)) {
-        return { done: true, result: { owned: true, rule: byTitle[0], score: 95, strict: true } };
+      const usableTitle = byTitle.filter((r) => !verbIdentityConflict(r, ctx.queryInf, qFam, spanIrreg));
+      if (usableTitle.length) {
+        return { done: true, result: { owned: true, rule: pickSameTitleRule(usableTitle), score: 95, strict: true } };
       }
     }
 
@@ -1083,9 +1118,25 @@ const RulesService = (() => {
         const specSeed = specKey && lookupSeedId(specKey);
         if (specSeed) {
           const seed = pool.find((r) => r.id === specSeed) || getById(specSeed);
-          const spanTok = firstSpanToken(ctx.span);
-          if (seed && !spanBlocksSharedEndingRule(spanTok)) {
-            return { done: true, result: { owned: true, rule: seed, score: 94, strict: true } };
+          if (
+            seed &&
+            !spanBlocksSharedEndingRule(ctx.span) &&
+            !verbIdentityConflict(seed, ctx.queryInf, qFam, spanIrreg)
+          ) {
+            const sameTitle = pool.filter(
+              (r) =>
+                titleNorm(r.title) === titleNorm(seed.title) &&
+                !verbIdentityConflict(r, ctx.queryInf, qFam, spanIrreg)
+            );
+            return {
+              done: true,
+              result: {
+                owned: true,
+                rule: pickSameTitleRule(sameTitle.length ? sameTitle : [seed]),
+                score: 94,
+                strict: true,
+              },
+            };
           }
         }
         const famShared = grammarFamilyFromKey(specKey) || grammarFamilyFromKey(k) || qFam;
@@ -1103,6 +1154,7 @@ const RulesService = (() => {
       if (named.length === 1) {
         return { done: true, result: { owned: true, rule: named[0], score: 94, strict: true } };
       }
+      if (!plausibleVerbInfinitive(inf)) return { done: false };
       return { done: true, result: { owned: false, rule: null, score: 0, reason: "verb-key-unmatched" } };
     }
 
@@ -1172,13 +1224,13 @@ const RulesService = (() => {
     }
 
     const exact = pool.filter((r) => nameNorm && titleNorm(r.title) === nameNorm);
-    if (exact.length === 1) {
-      const r = exact[0];
-      if (pronounRoleConflict(r, span, name)) {
-        return { owned: false, rule: null, score: 0, reason: "pronoun-role" };
-      }
-      if (!verbIdentityConflict(r, queryInf, qFam, spanIrreg)) {
-        return { owned: true, rule: r, score: 100, strict: true };
+    if (exact.length) {
+      const usable = exact.filter(
+        (r) => !pronounRoleConflict(r, span, name) && !verbIdentityConflict(r, queryInf, qFam, spanIrreg)
+      );
+      const picked = pickSameTitleRule(usable);
+      if (picked && !(isGeneralEndingRule(picked) && spanBlocksSharedEndingRule(span))) {
+        return { owned: true, rule: picked, score: 100, strict: true };
       }
     }
 
@@ -1199,6 +1251,15 @@ const RulesService = (() => {
         if (zhHits.length === 1) {
           return { owned: true, rule: zhHits[0], score: 90, strict: true };
         }
+        const sameTitle = nameNorm
+          ? usable.filter((r) => titleNorm(r.title) === nameNorm)
+          : usable;
+        if (sameTitle.length && new Set(sameTitle.map((r) => titleNorm(r.title))).size === 1) {
+          const picked = pickSameTitleRule(sameTitle);
+          if (picked && !(isGeneralEndingRule(picked) && spanBlocksSharedEndingRule(span))) {
+            return { owned: true, rule: picked, score: 90, strict: true };
+          }
+        }
         if (usable.length !== 1) {
           return { owned: false, rule: null, score: 0, reason: "ambiguous-marker", strict: true };
         }
@@ -1218,8 +1279,7 @@ const RulesService = (() => {
         return { owned: true, rule: specific[0], score: 86, strict: true };
       }
 
-      const spanTok = firstSpanToken(span);
-      const spanIsFunction = spanTok && isLocalFunctionWord(spanTok);
+      const spanIsFunction = Boolean(span && spanBlocksSharedEndingRule(span));
       const shared =
         !spanIsFunction &&
         (isRegularGroup1(queryInf) ||
@@ -1824,16 +1884,25 @@ const RulesService = (() => {
     ].map((w) => w.normalize("NFC").toLowerCase())
   );
 
-  /**
-   * 虛詞整詞才擋通則。j'aime／m'appelle／n'habite 的宿主是動詞，不擋「現在時（-er présent）」。
-   * entre／pas／le 仍擋。
-   */
-  function spanBlocksSharedEndingRule(spanTok) {
-    const tok = firstSpanToken(spanTok);
-    if (!tok || !isLocalFunctionWord(tok)) return false;
+  function spanWordTokens(span) {
+    return String(span || "").match(/[A-Za-zÀ-ÿœæŒÆ]+(?:['’][A-Za-zÀ-ÿœæŒÆ]+)*/g) || [];
+  }
+
+  function tokenIsPureFunction(tok) {
+    if (!isLocalFunctionWord(tok)) return false;
     const pro = elisionProclitic(normalizeToken(tok));
     if (pro && pro.host && !LOCAL_FUNCTION_WORDS.has(normalizeToken(pro.host))) return false;
     return true;
+  }
+
+  /**
+   * 整段都是虛詞才擋通則。il parle、mais parle 裡還有動詞，不擋。
+   * j'aime／m'appelle／n'habite 的宿主是動詞，不擋。entre／pas／le 整詞仍擋。
+   */
+  function spanBlocksSharedEndingRule(span) {
+    const toks = spanWordTokens(span);
+    if (!toks.length) return false;
+    return toks.every((t) => tokenIsPureFunction(t));
   }
 
   function isLocalFunctionWord(raw) {

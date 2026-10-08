@@ -161,12 +161,16 @@ a:hover {
 }
 
 .brand-mark {
-  width: 48px;
+  min-width: 48px;
+  width: auto;
   height: 48px;
+  padding: 0 0.5rem;
   border-radius: 14px;
   display: grid;
   place-items: center;
   font-weight: 700;
+  font-size: 1.02rem;
+  letter-spacing: -0.04em;
   color: #fff;
   background: linear-gradient(145deg, #9a7ec4, #6b4f96);
   box-shadow: var(--shadow);
@@ -3774,10 +3778,12 @@ a,
     gap: 0.5rem;
   }
   .brand-mark {
-    width: 34px;
+    min-width: 34px;
+    width: auto;
     height: 34px;
+    padding: 0 0.35rem;
     border-radius: 10px;
-    font-size: 0.8rem;
+    font-size: 0.74rem;
   }
   .brand h1 {
     font-size: 1.02rem;
@@ -4042,9 +4048,12 @@ a,
     padding-right: max(0.85rem, env(safe-area-inset-right));
   }
   .brand-mark {
-    width: 32px;
+    min-width: 32px;
+    width: auto;
     height: 32px;
+    padding: 0 0.32rem;
     border-radius: 9px;
+    font-size: 0.7rem;
   }
   .brand h1 {
     font-size: 0.98rem;
@@ -4194,10 +4203,12 @@ a,
   }
 
   .brand-mark {
-    width: 32px;
+    min-width: 32px;
+    width: auto;
     height: 32px;
+    padding: 0 0.32rem;
     border-radius: 9px;
-    font-size: 0.78rem;
+    font-size: 0.7rem;
   }
 
   .brand h1 {

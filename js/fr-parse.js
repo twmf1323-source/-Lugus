@@ -1103,9 +1103,72 @@ const FrParse = (() => {
     return Boolean(fromTok && FUNCTION_POS.has(fromTok.pos));
   }
 
+  function fnLooksSharedVerb(fn) {
+    const key = String(fn?.grammarKey || "");
+    if (!key || /^verb:(er|ir):/.test(key) || key === "verb:futur" || key === "pp:e") return true;
+    return /（\s*-?\s*(?:er|ir)\b|（\s*-é\s*）/i.test(String(fn?.name || ""));
+  }
+
+  function verbTokenAgrees(token, fn) {
+    const key = String(fn?.grammarKey || "");
+    const tk = String(token?.grammarKey || "");
+    if (!key || !tk) return false;
+    if (key === tk) return true;
+    const fm = /^verb:(er|ir):([^:]+)$/.exec(key);
+    const tm = /^verb:([^:]+):([^:]+)$/.exec(tk);
+    if (!fm || !tm || fm[2] !== tm[2]) return false;
+    if (tm[1] === fm[1]) return true;
+    return Boolean(
+      typeof Analyzer !== "undefined" &&
+        Analyzer.usesSharedGroupPattern &&
+        Analyzer.usesSharedGroupPattern(tm[1])
+    );
+  }
+
+  /** 不定詞才允許把 verb:er: 改成 verb:某動詞。il、vit 不是不定詞。 */
+  function lemmaCanOwnVerbKey(lemma) {
+    const s = String(lemma || "")
+      .trim()
+      .toLowerCase()
+      .normalize("NFC");
+    if (!s || s === "er" || s === "ir") return false;
+    if (typeof Analyzer !== "undefined" && Analyzer.isIrregularInfinitive && Analyzer.isIrregularInfinitive(s)) {
+      return true;
+    }
+    return s.length >= 4 && /(?:er|ir|re|oir)$/i.test(s);
+  }
+
+  function fnIsVerbGrammar(fn) {
+    const blob = `${fn?.category || ""} ${fn?.name || ""} ${fn?.grammarKey || ""}`;
+    if (/冠詞|介詞|代詞|否定|連詞|article|prep|pron:|neg:|conj:|det:|élision|省音/.test(blob)) return false;
+    return /變位|時態|動詞|présent|imparfait|futur|分詞|infinitif|不定式|^verb:|^pp:/.test(blob);
+  }
+
   function clipGrammarTokenRange(tokens, from, to, fn) {
     const n = tokens.length;
     if (!n) return { from, to };
+    if (fnIsVerbGrammar(fn)) {
+      const agreed = [];
+      const verbs = [];
+      for (let i = from; i <= to; i++) {
+        const t = tokens[i];
+        if (!t || t.pos !== "動詞") continue;
+        verbs.push(i);
+        if (verbTokenAgrees(t, fn)) agreed.push(i);
+      }
+      const pick = agreed.length ? agreed[0] : verbs.length === 1 && fnLooksSharedVerb(fn) ? verbs[0] : -1;
+      if (pick >= 0) return { from: pick, to: pick };
+      while (to > from) {
+        const t = tokens[to];
+        if (!t || SKIP_POS.has(t.pos)) {
+          to -= 1;
+          continue;
+        }
+        if (t.pos === "動詞" || FUNCTION_POS.has(t.pos)) break;
+        to -= 1;
+      }
+      return { from, to };
+    }
     if (isFunctionGrammarFn(fn, tokens[from])) {
       while (to > from) {
         const t = tokens[to];
@@ -1114,16 +1177,6 @@ const FrParse = (() => {
           continue;
         }
         if (FUNCTION_POS.has(t.pos) || t.pos === "動詞") break;
-        to -= 1;
-      }
-    } else if (/變位|時態|動詞|présent|imparfait|futur|分詞|infinitif|不定式/.test(`${fn?.category || ""} ${fn?.name || ""}`)) {
-      while (to > from) {
-        const t = tokens[to];
-        if (!t || SKIP_POS.has(t.pos)) {
-          to -= 1;
-          continue;
-        }
-        if (t.pos === "動詞" || FUNCTION_POS.has(t.pos)) break;
         to -= 1;
       }
     }
@@ -1161,7 +1214,13 @@ const FrParse = (() => {
       Number.isFinite(start) && Number.isFinite(end) && end > start
         ? src.slice(start, end)
         : slice.map((t) => t.form || t.word).join("");
-    const lemma = cleanInfinitiveLabel(fn.lemma || tokens[from]?.lemma || "");
+    const tokenLemma = cleanInfinitiveLabel(tokens[from]?.lemma || "");
+    const fnLemma = cleanInfinitiveLabel(fn.lemma || "");
+    const lemma = lemmaCanOwnVerbKey(tokenLemma)
+      ? tokenLemma
+      : lemmaCanOwnVerbKey(fnLemma)
+        ? fnLemma
+        : tokenLemma || fnLemma;
     let rawName = cleanGrammarName(fn.name);
     if (typeof Analyzer !== "undefined" && Analyzer.rewriteVerbTitle) {
       rawName = Analyzer.rewriteVerbTitle(rawName, { infinitive: lemma, span }) || rawName;
@@ -1176,7 +1235,7 @@ const FrParse = (() => {
       Analyzer.usesSharedGroupPattern(lemma);
     if (sharedLemma && typeof Analyzer.groupPatternSpec === "function") {
       grammarKey = Analyzer.groupPatternSpec(lemma, names.name).key || grammarKey;
-    } else if (lemma && lemma !== "er" && grammarKey.startsWith("verb:er:")) {
+    } else if (lemma && lemma !== "er" && grammarKey.startsWith("verb:er:") && lemmaCanOwnVerbKey(lemma)) {
       grammarKey = `verb:${lemma}:${grammarKey.split(":")[2] || "present"}`;
     }
     const item = {

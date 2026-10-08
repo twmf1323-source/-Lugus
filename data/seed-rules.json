@@ -17,7 +17,7 @@
   },
   {
     "id": "seed-pouvoir-imparfait",
-    "title": "pouvoir 未完成過去（imparfait）",
+    "title": "能未完成過去（pouvoir imparfait）",
     "category": "變位",
     "explanation": "詞幹 pouv-（來自 nous pouvons），加上標準 imparfait 詞尾。",
     "endings": {
@@ -49,7 +49,7 @@
   },
   {
     "id": "seed-etre-present",
-    "title": "être 現在時（présent）",
+    "title": "是現在時（être présent）",
     "category": "變位",
     "explanation": "être 現在時完全不規則，需整組背誦。",
     "endings": {
@@ -81,7 +81,7 @@
   },
   {
     "id": "seed-avoir-present",
-    "title": "avoir 現在時（présent）",
+    "title": "有現在時（avoir présent）",
     "category": "變位",
     "explanation": "avoir 現在時常用作 passé composé 助動詞。je 在元音前常寫成 j'ai；否定時 ne 省音為 n'ai pas。",
     "endings": {

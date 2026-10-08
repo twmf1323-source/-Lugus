@@ -256,12 +256,15 @@ const Storage = (() => {
     "第一組動詞現在時（-er présent）": "現在時（-er présent）",
     "第一組過去分詞（-é）": "過去分詞（-é）",
     "第一組動詞過去分詞（-é）": "過去分詞（-é）",
-    "未完成過去（pouvoir imparfait）": "pouvoir 未完成過去（imparfait）",
-    "pouvoir 未完成過去（pouvoir imparfait）": "pouvoir 未完成過去（imparfait）",
-    "現在時（être）": "être 現在時（présent）",
-    "être 現在時（être présent）": "être 現在時（présent）",
-    "現在時（avoir）": "avoir 現在時（présent）",
-    "avoir 現在時（avoir présent）": "avoir 現在時（présent）",
+    "未完成過去（pouvoir imparfait）": "能未完成過去（pouvoir imparfait）",
+    "pouvoir 未完成過去（pouvoir imparfait）": "能未完成過去（pouvoir imparfait）",
+    "pouvoir 未完成過去（imparfait）": "能未完成過去（pouvoir imparfait）",
+    "現在時（être）": "是現在時（être présent）",
+    "être 現在時（être présent）": "是現在時（être présent）",
+    "être 現在時（présent）": "是現在時（être présent）",
+    "現在時（avoir）": "有現在時（avoir présent）",
+    "avoir 現在時（avoir présent）": "有現在時（avoir présent）",
+    "avoir 現在時（présent）": "有現在時（avoir présent）",
   };
 
   function migrateRuleTitles(rules) {

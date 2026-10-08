@@ -757,7 +757,7 @@ const Analyzer = (() => {
           "確認不定詞（infinitif）與時態",
           "【不規則】勿套用第一組／通則詞尾，需另立此動詞專屬規則",
           "六人稱格子請填完整形（suis、peux…），不要只填 -ais",
-          "規則名寫具體動詞：如 pouvoir 未完成過去（imparfait）",
+          "規則名寫「中文意思＋時態（原形＋法語）」：如 能未完成過去（pouvoir imparfait）",
           "對照 Bescherelle／變位表核對其餘格",
         ]
       : [
@@ -824,8 +824,64 @@ const Analyzer = (() => {
     不定式: "infinitif",
     複合過去: "passé composé",
     命令: "impératif",
+    命令式: "impératif",
     條件式: "conditionnel",
     虛擬式: "subjonctif",
+    簡單過去: "passé simple",
+    現在分詞: "participe présent",
+  };
+
+  /** 第三組常見動詞的標準中文意思。標題已寫中文、且不在表內時，沿用標題裡的意思。 */
+  const GROUP3_GLOSS = {
+    être: "是",
+    avoir: "有",
+    aller: "去",
+    faire: "做",
+    pouvoir: "能",
+    vouloir: "想",
+    devoir: "應該",
+    savoir: "知道",
+    venir: "來",
+    tenir: "握",
+    souvenir: "記得",
+    devenir: "變成",
+    revenir: "回來",
+    obtenir: "得到",
+    appartenir: "屬於",
+    prendre: "拿",
+    mettre: "放",
+    dire: "說",
+    voir: "看",
+    boire: "喝",
+    croire: "相信",
+    écrire: "寫",
+    lire: "讀",
+    vivre: "活",
+    suivre: "跟",
+    conduire: "駕駛",
+    craindre: "怕",
+    plaire: "討喜",
+    rire: "笑",
+    connaître: "認識",
+    connaitre: "認識",
+    partir: "離開",
+    sortir: "出去",
+    dormir: "睡",
+    mentir: "說謊",
+    servir: "服務",
+    sentir: "感覺",
+    courir: "跑",
+    mourir: "死",
+    fuir: "逃",
+    cueillir: "採",
+    bouillir: "沸",
+    ouvrir: "開",
+    couvrir: "蓋",
+    offrir: "送",
+    souffrir: "受苦",
+    asseoir: "坐",
+    naître: "出生",
+    naitre: "出生",
   };
 
   function tenseLabelFromTitle(text) {
@@ -834,9 +890,11 @@ const Analyzer = (() => {
     const stripped = left.replace(/^[a-zàâäéèêëïîôùûüçœæ'’\s_-]+\s+/i, "").trim() || left;
     if (TITLE_TENSE_FR[stripped]) return stripped;
     if (/未完成/.test(s)) return "未完成過去";
+    if (/現在分詞|participe présent/.test(s)) return "現在分詞";
     if (/過去分詞|participe/.test(s)) return "過去分詞";
     if (/複合過去|passé compos/.test(s)) return "複合過去";
     if (/簡單未來|futur/.test(s)) return "簡單未來式";
+    if (/簡單過去|passé simple/.test(s)) return "簡單過去";
     if (/不定式|infinitif/.test(s)) return "不定式";
     if (/命令|impératif/.test(s)) return "命令";
     if (/條件|conditionnel/.test(s)) return "條件式";
@@ -940,26 +998,64 @@ const Analyzer = (() => {
     };
   }
 
+  function canonicalTenseZh(key) {
+    if (key === "簡單未來") return "簡單未來式";
+    if (key === "命令") return "命令式";
+    return key || "現在時";
+  }
+
+  /** 標題裡「中文意思＋時態」的中文意思。沒有中文時回空字串。 */
+  function glossBeforeTense(text) {
+    const left = String(text || "")
+      .replace(/[（(].*$/, "")
+      .trim();
+    if (!left) return "";
+    const suffixes = [
+      "未完成過去",
+      "簡單未來式",
+      "簡單未來",
+      "過去分詞",
+      "複合過去",
+      "條件式",
+      "虛擬式",
+      "現在分詞",
+      "簡單過去",
+      "不定式",
+      "現在時",
+      "命令式",
+      "命令",
+    ];
+    const body = left
+      .replace(/^[a-zàâäéèêëïîôùûüçœæ'’_-]+(?:\s+[a-zàâäéèêëïîôùûüçœæ'’_-]+)*\s+/i, "")
+      .trim();
+    for (const suf of suffixes) {
+      if (body.endsWith(suf) && body.length > suf.length) {
+        const g = body
+          .slice(0, -suf.length)
+          .replace(/[\s·・]+$/g, "")
+          .trim();
+        if (/[\u4e00-\u9fff]/.test(g) && !/[A-Za-zÀ-ÿ]/.test(g)) return g;
+      }
+    }
+    return "";
+  }
+
   /**
-   * 不規則／第三組：不定詞＋時態（souvenir 現在時（présent））。
+   * 第三組／不規則：中文意思＋時態或用法（原形＋法語時態或用法）。
+   * 例：說現在時（dire présent）、能未完成過去（pouvoir imparfait）。
    * 第一／二組規則動詞用詞尾通則（現在時（-er présent））。
    */
   function specificVerbRuleTitle(infinitive, tenseZhOrTitle) {
-    const inf = String(infinitive || "")
-      .trim()
-      .toLowerCase()
-      .normalize("NFC")
-      .replace(/_/g, " ")
-      .replace(/^se\s+/i, "")
-      .replace(/^s['’]/i, "")
-      .trim();
+    const inf = stripVerbLemma(infinitive);
     if (!inf) return "";
     const raw = String(tenseZhOrTitle || "").trim();
-    let zh = raw.replace(/[（(].*$/, "").trim() || "現在時";
-    zh = zh.replace(new RegExp(`^${inf.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\s+`, "i"), "").trim() || zh;
-    const fr = TITLE_TENSE_FR[zh] || "";
+    const zhKey = tenseLabelFromTitle(raw) || "現在時";
+    const zh = canonicalTenseZh(zhKey);
+    const fr = TITLE_TENSE_FR[zh] || TITLE_TENSE_FR[zhKey] || "";
     const frLabel = fr || zh;
-    return `${inf} ${zh}（${frLabel}）`;
+    const gloss = GROUP3_GLOSS[inf] || glossBeforeTense(raw);
+    if (!gloss) return `${zh}（${inf} ${frLabel}）`;
+    return `${gloss}${zh}（${inf} ${frLabel}）`;
   }
 
   function isGenericGroupTitle(title) {
@@ -1014,13 +1110,13 @@ const Analyzer = (() => {
       const tense = tenseLabelFromTitle(s) || extra.tense || "現在時";
       if (usesSharedGroupPattern(inf)) return groupPatternSpec(inf, tense).name;
       if (isGroup3Infinitive(inf) || isIrregularInfinitive(inf)) {
-        return specificVerbRuleTitle(inf, tense);
+        return specificVerbRuleTitle(inf, s || tense);
       }
     }
     return rewriteSpecificVerbTitle(s);
   }
 
-  /** 舊式「現在時（souvenir présent）」→「souvenir 現在時（présent）」 */
+  /** 從標題裡的拉丁字抽出不定詞形（dire、souvenir）。 */
   function extractInfinitiveWord(text) {
     const words = String(text || "")
       .toLowerCase()
@@ -1047,33 +1143,30 @@ const Analyzer = (() => {
       .replace(/^s['’]/i, "");
     if (/^-?(er|ir|é)\b/i.test(right)) return s;
 
+    let inf = "";
     const leftWords = left.split(/\s+/).filter(Boolean);
     if (leftWords.length >= 2) {
-      const maybeInf = leftWords[0];
+      const maybeInf = stripVerbLemma(leftWords[0]);
       const maybeZh = leftWords.slice(1).join(" ");
-      if (TITLE_TENSE_FR[maybeZh] || maybeZh === "過去分詞" || maybeZh === "不定式") {
-        if (usesSharedGroupPattern(maybeInf)) return groupPatternSpec(maybeInf, maybeZh).name;
-        if (isGroup3Infinitive(maybeInf) || isIrregularInfinitive(maybeInf)) {
-          return specificVerbRuleTitle(maybeInf, maybeZh);
+      if (TITLE_TENSE_FR[maybeZh] || /過去分詞|不定式|命令|條件|虛擬|未來|現在/.test(maybeZh)) {
+        inf = maybeInf;
+      }
+    }
+    if (!inf) inf = stripVerbLemma(extractInfinitiveWord(right) || "");
+    if (!inf) inf = extractIrregularInfinitive(s) || "";
+    if (!inf) {
+      for (const w of right.split(/\s+/)) {
+        const hit = lookupIrregular(w);
+        if (hit?.infinitive) {
+          inf = hit.infinitive;
+          break;
         }
       }
     }
-
-    if (!TITLE_TENSE_FR[left] && left !== "過去分詞" && left !== "不定式") return s;
-    let inf = extractIrregularInfinitive(s);
-    if (!inf) {
-      const hit = String(right)
-        .split(/\s+/)
-        .map((w) => w.toLowerCase().normalize("NFC"))
-        .find((w) => w.length >= 3 && /(?:er|ir|re|oir)$/i.test(w) && !isGenericGroupTitle(w));
-      inf = hit || "";
-    }
     if (!inf) return s;
-    if (usesSharedGroupPattern(inf)) return groupPatternSpec(inf, left).name;
-    if (!isGroup3Infinitive(inf) && !isIrregularInfinitive(inf) && !/(?:oir|re)$/i.test(inf)) {
-      return s;
-    }
-    return specificVerbRuleTitle(inf, left);
+    if (usesSharedGroupPattern(inf)) return groupPatternSpec(inf, s).name;
+    if (!isGroup3Infinitive(inf) && !isIrregularInfinitive(inf)) return s;
+    return specificVerbRuleTitle(inf, s) || s;
   }
 
   function infinitiveForGrammarItem(it, vocab, tokens) {
@@ -1134,7 +1227,7 @@ const Analyzer = (() => {
     return t;
   }
 
-  /** 不規則改成不定詞＋時態；規則動詞改回第一／二組通則 */
+  /** 第三組改成中文意思＋時態（原形＋法語）；規則動詞改回第一／二組通則 */
   function rewriteInventoryVerbTitles(inventory) {
     const inv = inventory && typeof inventory === "object" ? inventory : { items: [] };
     const items = Array.isArray(inv.items) ? inv.items : [];

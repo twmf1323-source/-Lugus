@@ -14,9 +14,9 @@ const AiService = (() => {
 2. 動詞變位：p=true，d 填六格詞尾（-ais）或完整形（suis、ai）；k 可 []。
 3. 一般文法：p=false，d 六格全 ""，k 填 pas、ne、n' 等表面形。
 4. e 只寫用法，盡量無例句。不要 structure。
-5. 一次一主題。不規則必須寫具體動詞名（如 pouvoir 現在時），禁止只寫「不規則」。
+5. 一次一主題。第三組必須寫出該動詞的中文意思，禁止只寫「不規則」。
 6. 標題括號內法語標記要具體，避免空泛「動詞」「時態」。
-7. 【動詞標題】第一／二組規則動詞用通則：dure／parle → 現在時（-er présent）；finir → 現在時（-ir présent）。不規則另立「不定詞＋時態（法語）」：souvenir 現在時（présent）、pouvoir 未完成過去（imparfait）。不規則 d 填完整形，禁止只填 -ais/-e。`;
+7. 【動詞標題】第一／二組規則動詞用通則：dure／parle → 現在時（-er présent）；finir → 現在時（-ir présent）。第三組一律「中文意思＋時態或用法（原形＋法語時態或用法）」：dit → 說現在時（dire présent）；suis → 是現在時（être présent）；pouvais → 能未完成過去（pouvoir imparfait）；souvient → 記得現在時（souvenir présent）；assis → 坐過去分詞（asseoir participe passé）。括號內是原形加法語，不要只寫時態，也不要把原形放在括號外。不規則 d 填完整形，禁止只填 -ais/-e。`;
 
   const INVENTORY_SYSTEM = `你是法語文法助教。盤點句中文法，並給實詞原形與簡義。只輸出一個 JSON（無 markdown／圍欄）。
 
@@ -38,10 +38,10 @@ const AiService = (() => {
 1. n 格式「極短中文用法名（法語標記）」，全形括號。如 **否定（ne…pas）**、過去分詞（-é）、現在時（présent）。中文極短；括號內只寫法語。
 2. **獨立盤點**：不要推測或迎合使用者的本地筆記本。n 用標準功能名；句中實際文法都要列。
    - **規則動詞用第一／二組通則**：dure／parle／habite → 現在時（-er présent）；不要為每個 -er 動詞另立卡。
-   - **不規則另立「不定詞＋時態（法語）」**：souvient → souvenir 現在時（présent）；dit → dire 現在時（présent）。禁止 現在時（se souvenir）。
+   - **第三組一律「中文意思＋時態或用法（原形＋法語）」**：souvient → 記得現在時（souvenir présent）；dit → 說現在時（dire présent）；suis → 是現在時（être présent）。禁止 souvenir 現在時（présent）、禁止 現在時（se souvenir）、禁止只在括號裡寫時態。
    - **不要把代詞列成文法卡**：主語／反身／賓語／副代詞 en／指示 ça／關係代詞。代詞當詞彙即可。
 3. 禁止 n 只寫「不規則」「動詞變位」「現在時」「imparfait」等統稱。
-4. 【不規則另立規則】suis/vais/peux/dit/souvient 等：n＝「不定詞 中文時態（法語）」（être 現在時（présent）、souvenir 現在時（présent））。不可併入 -er 通則，也不可套用另一個動詞名。
+4. 【第三組另立規則】suis/vais/peux/dit/souvient 等：n＝「中文意思＋時態或用法（原形＋法語時態或用法）」（是現在時（être présent）、記得現在時（souvenir présent）、能未完成過去（pouvoir imparfait））。不可併入 -er 通則，也不可套用另一個動詞名。
 5. 只列值得建卡的點。不要參考任何本地筆記本標題。
 6. 不要在 i 寫用法長文。
 7. 一次一主題；句中只有 pouvais 不要列其他時態。
@@ -54,7 +54,7 @@ const AiService = (() => {
 11b. **人稱代詞 COD／COI 勿混**：me／te／nous／vous 可能是直接或間接賓語。dire／parler／donner／demander 等「對人說／給」的對象是**間接賓語 COI**（te dit、lui parle），不要標成直接賓語（pronoms objets directs）。le／la／les＝COD；lui／leur＝第三人稱 COI。
 11c. **不定式不是 avoir**：d'y voir、à faire、de parler 是不定式（infinitif），n 寫「不定式（infinitif）」或「不定式（voir）」。禁止套用 avoir／être 現在時或助動詞卡。avoir 只在有 ai／as／a／avons… 或複合過去助動詞時才報。
 11d. **省音分清**：d'＝de 省音（d'y、d'un）；l'＝le／la 冠詞省音（l'histoire）。不可把 d' 標成 élision l'。
-11e. **不規則過去分詞禁止套用 -é**：assis／assise（asseoir）、mis、pris、fait、dit、écrit、ouvert、vu 不是第一組 -é。n 寫「過去分詞（assis）」或含不定詞，不要寫成「過去分詞（-é）」。-é 只用於規則 -er（déjeuné、parlé）。
+11e. **不規則過去分詞禁止套用 -é**：assis／assise（asseoir）、mis、pris、fait、dit、écrit、ouvert、vu 不是第一組 -é。n 寫「中文意思＋過去分詞（原形 participe passé）」，如 坐過去分詞（asseoir participe passé）、說過去分詞（dire participe passé）。不要寫成「過去分詞（-é）」或「過去分詞（assis）」。-é 只用於規則 -er（déjeuné、parlé）。
 11f. **絕對構句**：須是「名詞＋分詞」獨立結構（la leçon finie, il partit）。分詞當狀語／同位（lui dit assis dans…）不要標 construction absolue。
 11g. **普通名詞不是文法**：histoire／noir／idée／année 只進 v，不要進 i（不要「名詞（histoire）」這種卡）。冠詞／介詞的 s 只標標記本身（l'、le、dans），禁止包後面的名詞（不要把 l'histoire、dans la ville 當冠詞／介詞 span）。
 
@@ -597,7 +597,7 @@ const AiService = (() => {
 2. rejected／unknown 可省 n/g/a/b；confirmed／reclassified 必填 g/n/a/b/c/f。清單外補漏用 q="new:1" 起編。
 3. g 必須是 ASCII 語義鍵（article:def、pron:cod、pron:coi、prep:en、prep:de、verb:etre:present、inf:infinitif），不可用本地卡名。
 4. a/b 是切詞編號含兩端，只蓋文法標記，不要包後面實詞。
-5. 確認項 n 必須等於清單名稱。改判：規則 -er／-ir 用 現在時（-er présent）／現在時（-ir présent）；不規則用 souvenir 現在時（présent）。禁止把規則動詞改成 durer 現在時（présent）。
+5. 確認項 n 必須等於清單名稱。改判：規則 -er／-ir 用 現在時（-er présent）／現在時（-ir présent）；第三組用 記得現在時（souvenir présent）、說現在時（dire présent）這種「中文意思＋時態（原形＋法語）」。禁止把規則動詞改成 durer 現在時（présent），也禁止把第三組寫成 souvenir 現在時（présent）。
 6. 同形異義依語境：le/la/les 後接動詞＝pron:cod，後接名詞＝article:def；en 後接地名／語言＝prep:en，否則 pron:en；leur 後接名詞＝det:poss，否則 pron:coi。
 7. 不要否決或改寫「已本地確認」列。不要把普通名詞當文法。不要把代詞（je／on／se／en／ça／lui）列成文法。t 必填繁中翻譯。`;
 
